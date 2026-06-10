@@ -1,0 +1,14 @@
+streamlit
+neo4j
+faker
+pandas
+numpy
+networkx
+plotly
+scikit-learn
+spacy
+transformers
+torch
+fastapi
+uvicorn
+python-multipart
