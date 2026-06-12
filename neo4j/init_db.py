@@ -1,266 +1,266 @@
 """
-Script d'initialisation de la base de données Neo4j pour LinkUpDS
-
-Ce script crée :
-- Les contraintes d'unicité sur userId et postId
-- Les index pour accélérer les requêtes
-- Les noeuds de base (admin, catégories)
-
-Exécution : python scripts/init_db.py
+Initialisation Neo4j LinkUpDS (Neo4j 5+ compatible)
 """
 
 import logging
 import sys
 from neo4j import GraphDatabase, exceptions
 
-# Configuration des logs
+# ---------------- CONFIG LOGS ----------------
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S"
 )
-logger = logging.getLogger(__name__)
 
-# Configuration de connexion
+logger = logging.getLogger("neo4j-init")
+
+# ---------------- CONFIG DB ----------------
 URI = "bolt://localhost:7687"
 USER = "neo4j"
 PASSWORD = "motdepasse"
 
-# Liste des contraintes à créer
+# ---------------- CONSTRAINTS (NEO4J 5+) ----------------
 CONSTRAINTS = [
     {
-        "name": "constraint_user_id",
-        "query": "CREATE CONSTRAINT constraint_user_id IF NOT EXISTS FOR (u:User) REQUIRE u.userId IS UNIQUE"
+        "name": "user_id_unique",
+        "query": """
+        CREATE CONSTRAINT user_id_unique IF NOT EXISTS
+        FOR (u:User)
+        REQUIRE u.userId IS UNIQUE
+        """
     },
     {
-        "name": "constraint_post_id", 
-        "query": "CREATE CONSTRAINT constraint_post_id IF NOT EXISTS FOR (p:Post) REQUIRE p.postId IS UNIQUE"
+        "name": "post_id_unique",
+        "query": """
+        CREATE CONSTRAINT post_id_unique IF NOT EXISTS
+        FOR (p:Post)
+        REQUIRE p.postId IS UNIQUE
+        """
     }
 ]
 
-# Liste des index à créer
+# ---------------- INDEXES ----------------
 INDEXES = [
     {
         "name": "idx_user_email",
-        "query": "CREATE INDEX idx_user_email IF NOT EXISTS FOR (u:User) ON (u.email)"
+        "query": """
+        CREATE INDEX idx_user_email IF NOT EXISTS
+        FOR (u:User)
+        ON (u.email)
+        """
     },
     {
         "name": "idx_user_name",
-        "query": "CREATE INDEX idx_user_name IF NOT EXISTS FOR (u:User) ON (u.name)"
+        "query": """
+        CREATE INDEX idx_user_name IF NOT EXISTS
+        FOR (u:User)
+        ON (u.name)
+        """
     },
     {
         "name": "idx_post_timestamp",
-        "query": "CREATE INDEX idx_post_timestamp IF NOT EXISTS FOR (p:Post) ON (p.timestamp)"
+        "query": """
+        CREATE INDEX idx_post_timestamp IF NOT EXISTS
+        FOR (p:Post)
+        ON (p.timestamp)
+        """
     },
     {
         "name": "idx_post_sentiment",
-        "query": "CREATE INDEX idx_post_sentiment IF NOT EXISTS FOR (p:Post) ON (p.sentiment)"
+        "query": """
+        CREATE INDEX idx_post_sentiment IF NOT EXISTS
+        FOR (p:Post)
+        ON (p.sentiment)
+        """
     }
 ]
 
-# Liste des noeuds par défaut à créer
+# ---------------- DEFAULT DATA ----------------
 DEFAULT_NODES = [
     {
-        "type": "User",
-        "properties": {
+        "label": "User",
+        "key": "userId",
+        "props": {
             "userId": "admin_system",
-            "name": "Administrateur Systeme",
+            "name": "Admin System",
             "email": "admin@linkupds.local",
-            "password": "admin123",
-            "role": "admin"
+            "role": "admin",
+            "password": "admin123"
         }
     },
     {
-        "type": "Category",
-        "properties": {
+        "label": "Category",
+        "key": "categoryId",
+        "props": {
             "categoryId": "cat_general",
             "name": "General",
-            "description": "Discussions generales"
+            "description": "Discussions générales"
         }
     },
     {
-        "type": "Category",
-        "properties": {
+        "label": "Category",
+        "key": "categoryId",
+        "props": {
             "categoryId": "cat_tech",
             "name": "Technologie",
-            "description": "Sujets techniques et programmation"
+            "description": "Programmation et tech"
         }
     },
     {
-        "type": "Category",
-        "properties": {
+        "label": "Category",
+        "key": "categoryId",
+        "props": {
             "categoryId": "cat_social",
             "name": "Social",
-            "description": "Discussions sociales et communautaires"
+            "description": "Discussions sociales"
         }
     }
 ]
 
 
+# ================= CLASS =================
 class Neo4jInitializer:
-    """Classe pour initialiser et configurer la base Neo4j"""
-    
+
     def __init__(self, uri, user, password):
-        self.uri = uri
-        self.user = user
-        self.password = password
-        self.driver = None
-    
+        self.driver = GraphDatabase.driver(uri, auth=(user, password))
+
+    # -------- CONNECTION --------
     def connect(self):
-        """Etablit la connexion à Neo4j"""
         try:
-            self.driver = GraphDatabase.driver(self.uri, auth=(self.user, self.password))
             self.driver.verify_connectivity()
-            logger.info(f"Connexion reussie à Neo4j sur {self.uri}")
+            logger.info(f"Connexion réussie → {URI}")
             return True
         except exceptions.ServiceUnavailable:
-            logger.error(f"Impossible de se connecter à Neo4j sur {self.uri}. Verifiez que Neo4j est demarre.")
+            logger.error("Neo4j indisponible (Docker ?)")
             return False
         except exceptions.AuthError:
-            logger.error("Erreur d'authentification. Verifiez le nom d'utilisateur et le mot de passe.")
+            logger.error("Erreur authentification Neo4j")
             return False
-        except Exception as e:
-            logger.error(f"Erreur de connexion : {str(e)}")
-            return False
-    
+
     def close(self):
-        """Ferme la connexion"""
         if self.driver:
             self.driver.close()
-            logger.info("Connexion fermee")
-    
-    def execute_query(self, query, description=""):
-        """Execute une requête Cypher avec gestion d'erreur"""
+            logger.info("Connexion fermée")
+
+    # -------- EXEC QUERY SAFE --------
+    def run(self, query, params=None, label=""):
         try:
             with self.driver.session() as session:
-                session.run(query)
-                if description:
-                    logger.info(f"✓ {description}")
+                session.run(query, params or {})
+                if label:
+                    logger.info(f"✓ {label}")
                 return True
         except Exception as e:
-            logger.error(f"✗ Erreur : {description or query[:50]}")
-            logger.error(f"  {str(e)}")
+            logger.error(f"✗ {label or query[:40]}")
+            logger.error(str(e))
             return False
-    
+
+    # -------- CONSTRAINTS --------
     def create_constraints(self):
-        """Cree toutes les contraintes d'unicite"""
-        logger.info("Creation des contraintes...")
-        success_count = 0
-        for constraint in CONSTRAINTS:
-            if self.execute_query(constraint["query"], constraint["name"]):
-                success_count += 1
-        logger.info(f"Contraintes creees : {success_count}/{len(CONSTRAINTS)}")
-        return success_count == len(CONSTRAINTS)
-    
+        logger.info("Création contraintes...")
+        ok = 0
+
+        for c in CONSTRAINTS:
+            if self.run(c["query"], label=c["name"]):
+                ok += 1
+
+        logger.info(f"Contraintes : {ok}/{len(CONSTRAINTS)}")
+        return ok
+
+    # -------- INDEX --------
     def create_indexes(self):
-        """Cree tous les index"""
-        logger.info("Creation des index...")
-        success_count = 0
-        for index in INDEXES:
-            if self.execute_query(index["query"], index["name"]):
-                success_count += 1
-        logger.info(f"Index crees : {success_count}/{len(INDEXES)}")
-        return success_count == len(INDEXES)
-    
-    def create_default_nodes(self):
-        """Cree les noeuds par defaut s'ils n'existent pas"""
-        logger.info("Creation des noeuds par defaut...")
-        success_count = 0
-        
+        logger.info("Création index...")
+        ok = 0
+
+        for i in INDEXES:
+            if self.run(i["query"], label=i["name"]):
+                ok += 1
+
+        logger.info(f"Index : {ok}/{len(INDEXES)}")
+        return ok
+
+    # -------- NODES --------
+    def create_nodes(self):
+        logger.info("Création des noeuds...")
+
         for node in DEFAULT_NODES:
-            props = node["properties"].copy()
-            
-            # Identifier le champ d'identification
-            if node["type"] == "User":
-                match_field = "userId"
-            elif node["type"] == "Category":
-                match_field = "categoryId"
-            else:
-                match_field = list(props.keys())[0]
-            
-            match_value = props.get(match_field, "")
-            
-            # Construire la requête
-            set_parts = []
-            for key, value in props.items():
-                if key != match_field:
-                    set_parts.append(f"n.{key} = ${key}")
-            
-            set_clause = ", ".join(set_parts)
-            
+            label = node["label"]
+            key = node["key"]
+
             query = f"""
-            MERGE (n:{node["type"]} {{{match_field}: ${match_field}}})
-            SET {set_clause}, n.createdAt = datetime()
-            RETURN n
+            MERGE (n:{label} {{{key}: $value}})
+            SET n += $props, n.createdAt = datetime()
             """
-            
-            try:
-                with self.driver.session() as session:
-                    session.run(query, **props)
-                    logger.info(f"✓ Noeud : {node['type']} ({match_field}={match_value})")
-                    success_count += 1
-            except Exception as e:
-                logger.error(f"✗ Erreur noeud {node['type']} : {str(e)}")
-        
-        logger.info(f"Noeuds crees : {success_count}/{len(DEFAULT_NODES)}")
-        return success_count == len(DEFAULT_NODES)
-    
-    def verify_setup(self):
-        """Verifie que l'initialisation est correcte"""
-        logger.info("Verification de l'installation...")
-        
+
+            params = {
+                "value": node["props"][key],
+                "props": node["props"]
+            }
+
+            self.run(query, params, f"{label}:{params['value']}")
+
+    # -------- VERIFY (NEO4J 5+) --------
+    def verify(self):
+        logger.info("Vérification...")
+
         checks = {
-            "contraintes": "CALL db.constraints() YIELD name RETURN count(*) AS count",
-            "indexes": "SHOW INDEXES YIELD name RETURN count(*) AS count",
-            "noeuds": "MATCH (n) RETURN count(n) AS count"
+            "constraints": "SHOW CONSTRAINTS",
+            "indexes": "SHOW INDEXES",
+            "nodes": "MATCH (n) RETURN count(n) AS count"
         }
-        
+
         results = {}
-        for name, query in checks.items():
+
+        for name, q in checks.items():
             try:
                 with self.driver.session() as session:
-                    result = session.run(query)
-                    count = result.single()["count"]
-                    results[name] = count
-                    logger.info(f"✓ {name} : {count} element(s)")
+                    res = session.run(q)
+
+                    if name == "nodes":
+                        value = res.single()["count"]
+                    else:
+                        value = len(list(res))
+
+                    results[name] = value
+                    logger.info(f"{name}: {value}")
+
             except Exception as e:
-                logger.error(f"✗ Erreur verification {name} : {str(e)}")
+                logger.error(f"Erreur {name}: {e}")
                 results[name] = 0
-        
+
         return results
 
+    # -------- INIT FULL --------
+    def initialize(self):
+        logger.info("=" * 50)
+        logger.info("INITIALISATION NEO4J LINKUPDS")
+        logger.info("=" * 50)
 
+        self.create_constraints()
+        self.create_indexes()
+        self.create_nodes()
+
+        results = self.verify()
+
+        logger.info("=" * 50)
+        logger.info("INITIALISATION TERMINÉE")
+        logger.info(results)
+        logger.info("=" * 50)
+
+
+# ================= MAIN =================
 def main():
-    """Fonction principale"""
-    logger.info("=" * 50)
-    logger.info("Initialisation de Neo4j pour LinkUpDS")
-    logger.info("=" * 50)
-    
-    initializer = Neo4jInitializer(URI, USER, PASSWORD)
-    
-    if not initializer.connect():
-        logger.error("Impossible de continuer sans connexion Neo4j")
+    neo = Neo4jInitializer(URI, USER, PASSWORD)
+
+    if not neo.connect():
         return 1
-    
-    print("\n")
-    constraints_ok = initializer.create_constraints()
-    indexes_ok = initializer.create_indexes()
-    nodes_ok = initializer.create_default_nodes()
-    
-    print("\n")
-    results = initializer.verify_setup()
-    
-    print("\n")
-    logger.info("=" * 50)
-    if constraints_ok and indexes_ok:
-        logger.info("✅ INITIALISATION REUSSIE")
-    else:
-        logger.warning("⚠️ INITIALISATION PARTIELLE")
-    
-    logger.info(f"Statistiques : {results}")
-    logger.info("=" * 50)
-    
-    initializer.close()
+
+    try:
+        neo.initialize()
+    finally:
+        neo.close()
+
     return 0
 
 
