@@ -13,6 +13,17 @@ import logging
 import sys
 from neo4j import GraphDatabase, exceptions
 
+
+import os
+import sys
+from pathlib import Path
+
+from dotenv import load_dotenv
+from neo4j import GraphDatabase, exceptions
+
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+
+
 # Configuration des logs
 logging.basicConfig(
     level=logging.INFO,
@@ -22,9 +33,18 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Configuration de connexion
+
 URI = "bolt://localhost:7687"
 USER = "neo4j"
 PASSWORD = "motdepasse123"
+
+URI = os.getenv("NEO4J_URI", "bolt://localhost:7687")
+USER = os.getenv("NEO4J_USER", "neo4j")
+PASSWORD = os.getenv("NEO4J_PASSWORD")
+
+if not PASSWORD:
+    raise SystemExit("NEO4J_PASSWORD manquant dans .env")
+
 
 # Liste des contraintes à créer
 CONSTRAINTS = [
@@ -50,7 +70,11 @@ INDEXES = [
     },
     {
         "name": "idx_post_timestamp",
+
         "query": "CREATE INDEX idx_post_timestamp IF NOT EXISTS FOR (p:Post) ON (p.timestamp)"
+
+        "query": "CREATE INDEX idx_post_timestamp IF NOT EXISTS FOR (p:Post) ON (p.createdAt)"
+
     },
     {
         "name": "idx_post_sentiment",
@@ -59,6 +83,7 @@ INDEXES = [
 ]
 
 # Liste des noeuds par défaut à créer
+
 DEFAULT_NODES = [
     {
         "type": "User",
@@ -70,6 +95,23 @@ DEFAULT_NODES = [
             "role": "admin"
         }
     },
+
+def _default_nodes():
+    from src.utils.security import hash_password
+
+    return [
+        {
+            "type": "User",
+            "properties": {
+                "userId": "admin_system",
+                "name": "Administrateur Systeme",
+                "email": "admin@linkupds.local",
+                "username": "admin",
+                "password": hash_password("admin123"),
+                "role": "admin",
+            },
+        },
+
     {
         "type": "Category",
         "properties": {
@@ -93,8 +135,16 @@ DEFAULT_NODES = [
             "name": "Social",
             "description": "Discussions sociales et communautaires"
         }
+
     }
 ]
+
+    },
+    ]
+
+
+DEFAULT_NODES = _default_nodes()
+
 
 
 class Neo4jInitializer:
