@@ -42,8 +42,10 @@ st.markdown("""
 * { font-family: 'Inter', sans-serif; }
 
 .stApp {
-    background: radial-gradient(circle at 10% 20%, #0a0f1e, #03050b);
-    color: #ffffff;
+    background:
+        radial-gradient(circle at 12% 8%, rgba(46, 144, 255, 0.12), transparent 28%),
+        linear-gradient(180deg, #f8fbff 0%, #eef4fb 100%);
+    color: #0f172a;
 }
 .block-container {
     animation: fadeIn 0.8s cubic-bezier(0.2, 0.9, 0.4, 1.1);
@@ -53,48 +55,48 @@ st.markdown("""
     to { opacity: 1; transform: translateY(0);}
 }
 .premium-card {
-    background: rgba(15, 25, 40, 0.6);
-    backdrop-filter: blur(14px);
-    border: 1px solid rgba(46, 144, 255, 0.2);
-    border-radius: 28px;
+    background: rgba(255, 255, 255, 0.88);
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    border-radius: 18px;
     padding: 24px;
+    box-shadow: 0 16px 45px rgba(15, 23, 42, 0.08);
     transition: all 0.3s ease;
 }
 .premium-card:hover {
-    border-color: rgba(46, 144, 255, 0.6);
-    transform: translateY(-6px);
+    border-color: rgba(46, 144, 255, 0.36);
+    transform: translateY(-3px);
 }
 .hero {
     text-align: center;
     padding: 50px 20px;
-    background: linear-gradient(135deg, rgba(46,144,255,0.15), rgba(0,212,255,0.05));
-    border-radius: 60px;
+    background: rgba(255, 255, 255, 0.7);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    border-radius: 28px;
     margin-bottom: 40px;
+    box-shadow: 0 18px 50px rgba(15, 23, 42, 0.08);
 }
 .hero-title {
-    font-size: 68px;
+    font-size: 58px;
     font-weight: 800;
-    background: linear-gradient(90deg, #2e90ff, #00d4ff, #7c3aed);
+    background: linear-gradient(90deg, #1769e0, #0891b2, #7c3aed);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
-    animation: glow 3s infinite alternate;
 }
-@keyframes glow {
-    0% { text-shadow: 0 0 5px rgba(46,144,255,0.3);}
-    100% { text-shadow: 0 0 30px rgba(0,212,255,0.6);}
+.hero p, .post-meta, .muted {
+    color: #64748b;
 }
 .post-card {
-    background: rgba(18, 28, 45, 0.7);
-    backdrop-filter: blur(12px);
-    border: 1px solid rgba(46, 144, 255, 0.2);
-    border-radius: 24px;
+    background: rgba(255, 255, 255, 0.92);
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    border-radius: 18px;
     padding: 22px;
-    margin-bottom: 20px;
+    margin: 8px 0 10px;
+    box-shadow: 0 14px 34px rgba(15, 23, 42, 0.07);
     transition: 0.25s ease;
 }
 .post-card:hover {
-    border-color: #2e90ff;
-    transform: scale(1.01);
+    border-color: rgba(46, 144, 255, 0.38);
+    transform: translateY(-2px);
 }
 .avatar {
     width: 48px;
@@ -109,27 +111,51 @@ st.markdown("""
     color: white;
 }
 .stButton > button {
-    background: linear-gradient(95deg, #2e90ff, #1c6fd6);
-    color: white;
-    border: none;
-    border-radius: 40px;
-    padding: 10px 24px;
+    background: #ffffff;
+    color: #1e293b;
+    border: 1px solid #dbe3ee;
+    border-radius: 999px;
+    padding: 9px 18px;
     font-weight: 600;
-    transition: 0.2s;
+    transition: all 0.2s ease;
     width: 100%;
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
 }
 .stButton > button:hover {
-    transform: scale(1.02);
-    background: linear-gradient(95deg, #3a9eff, #2a7fe6);
+    color: #1769e0;
+    border-color: rgba(46, 144, 255, 0.45);
+    background: #f8fbff;
+    transform: translateY(-1px);
+}
+.stButton > button:focus {
+    box-shadow: 0 0 0 3px rgba(46, 144, 255, 0.16);
+}
+button[kind="primary"] {
+    color: #be123c !important;
+    border: 1px solid rgba(225, 29, 72, 0.26) !important;
+    background: #fff5f7 !important;
+}
+button[kind="primary"]:hover {
+    color: #9f1239 !important;
+    border-color: rgba(225, 29, 72, 0.42) !important;
+    background: #ffe9ee !important;
+}
+.post-actions {
+    margin: -4px 0 22px;
+    padding: 0 6px;
+}
+.post-actions .stButton > button {
+    min-height: 38px;
+    padding: 8px 14px;
 }
 section[data-testid="stSidebar"] {
-    background: rgba(5, 10, 20, 0.9);
-    backdrop-filter: blur(16px);
-    border-right: 1px solid rgba(46,144,255,0.2);
+    background: rgba(255, 255, 255, 0.86);
+    border-right: 1px solid rgba(148, 163, 184, 0.24);
 }
 .suggestion-item {
-    background: rgba(46,144,255,0.1);
-    border-radius: 20px;
+    background: rgba(241, 245, 249, 0.85);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    border-radius: 14px;
     padding: 12px;
     margin-bottom: 10px;
     display: flex;
@@ -226,22 +252,31 @@ def feed_page():
         post_id = post.get("postId")
         likes = st.session_state.db.get_likes_count(post_id)
         
-        col1, col2 = st.columns([0.9, 0.1])
-        with col1:
-            st.markdown(f"""
-            <div class="post-card">
-                <div style="display:flex; align-items:center; gap:14px;">
-                    {avatar(name)}
+        st.markdown(f"""
+        <div class="post-card">
+            <div style="display:flex; align-items:center; gap:14px;">
+                {avatar(name)}
+                <div>
                     <b style="font-size:18px;">{name}</b>
-                </div>
-                <p style="margin-top:12px; font-size:16px;">{content}</p>
-                <div style="display:flex; gap:20px; margin-top:12px;">
-                    <span>{likes}</span>
+                    <div class="post-meta">Publication</div>
                 </div>
             </div>
-            """, unsafe_allow_html=True)
-        with col2:
-            if author_id != st.session_state.user_id:
+            <p style="margin-top:14px; margin-bottom:0; font-size:16px; line-height:1.6;">{content}</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+        st.markdown('<div class="post-actions">', unsafe_allow_html=True)
+        if author_id != st.session_state.user_id:
+            action_cols = st.columns([0.22, 0.32, 0.46])
+        else:
+            action_cols = st.columns([0.22, 0.78])
+
+        with action_cols[0]:
+            if st.button(f"♥ {likes}", key=f"like_{post_id}", help="Aimer", type="primary"):
+                st.session_state.db.like_post(st.session_state.user_id, post_id)
+                st.rerun()
+        if author_id != st.session_state.user_id:
+            with action_cols[1]:
                 following = [f["userId"] for f in st.session_state.db.get_following(st.session_state.user_id)]
                 if author_id in following:
                     if st.button("Ne plus suivre", key=f"unfollow_{post_id}"):
@@ -251,9 +286,7 @@ def feed_page():
                     if st.button("Suivre", key=f"follow_{post_id}"):
                         st.session_state.db.follow(st.session_state.user_id, author_id)
                         st.rerun()
-            if st.button("Like", key=f"like_{post_id}"):
-                st.session_state.db.like_post(st.session_state.user_id, post_id)
-                st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
 
 # =========================
 # CREER POST
@@ -300,13 +333,10 @@ def suggestions_section():
     following = [f["userId"] for f in st.session_state.db.get_following(st.session_state.user_id)]
     suggestions = [u for u in all_users if u["userId"] != st.session_state.user_id and u["userId"] not in following][:5]
     for u in suggestions:
-        col1, col2 = st.columns([3,1])
-        with col1:
-            st.write(f"**{u['name']}**")
-        with col2:
-            if st.button("Suivre", key=f"suggest_{u['userId']}"):
-                st.session_state.db.follow(st.session_state.user_id, u["userId"])
-                st.rerun()
+        st.write(f"**{u['name']}**")
+        if st.button("Suivre", key=f"suggest_{u['userId']}", use_container_width=True):
+            st.session_state.db.follow(st.session_state.user_id, u["userId"])
+            st.rerun()
 
 # =========================
 # SIDEBAR
