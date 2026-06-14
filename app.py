@@ -1,0 +1,353 @@
+"""
+LinkUpDS – Design Premium + Feed Intelligent + Suggestions
+"""
+
+import streamlit as st
+import uuid
+import sys
+import os
+
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from src.db_utils import LinkUpDB
+
+# =========================
+# CONFIG PAGE
+# =========================
+st.set_page_config(
+    page_title="LinkUpDS – Le réseau intelligent",
+    page_icon="🌐",
+    layout="wide"
+)
+
+# =========================
+# SESSION STATE
+# =========================
+if "db" not in st.session_state:
+    st.session_state.db = LinkUpDB()
+if "user_id" not in st.session_state:
+    st.session_state.user_id = None
+if "user_name" not in st.session_state:
+    st.session_state.user_name = None
+if "page" not in st.session_state:
+    st.session_state.page = "home"
+if "refresh_feed" not in st.session_state:
+    st.session_state.refresh_feed = False
+
+# =========================
+# CSS PREMIUM
+# =========================
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+* { font-family: 'Inter', sans-serif; }
+
+.stApp {
+    background: radial-gradient(circle at 10% 20%, #0a0f1e, #03050b);
+    color: #ffffff;
+}
+.block-container {
+    animation: fadeIn 0.8s cubic-bezier(0.2, 0.9, 0.4, 1.1);
+}
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(30px);}
+    to { opacity: 1; transform: translateY(0);}
+}
+.premium-card {
+    background: rgba(15, 25, 40, 0.6);
+    backdrop-filter: blur(14px);
+    border: 1px solid rgba(46, 144, 255, 0.2);
+    border-radius: 28px;
+    padding: 24px;
+    transition: all 0.3s ease;
+}
+.premium-card:hover {
+    border-color: rgba(46, 144, 255, 0.6);
+    transform: translateY(-6px);
+}
+.hero {
+    text-align: center;
+    padding: 50px 20px;
+    background: linear-gradient(135deg, rgba(46,144,255,0.15), rgba(0,212,255,0.05));
+    border-radius: 60px;
+    margin-bottom: 40px;
+}
+.hero-title {
+    font-size: 68px;
+    font-weight: 800;
+    background: linear-gradient(90deg, #2e90ff, #00d4ff, #7c3aed);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: glow 3s infinite alternate;
+}
+@keyframes glow {
+    0% { text-shadow: 0 0 5px rgba(46,144,255,0.3);}
+    100% { text-shadow: 0 0 30px rgba(0,212,255,0.6);}
+}
+.post-card {
+    background: rgba(18, 28, 45, 0.7);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(46, 144, 255, 0.2);
+    border-radius: 24px;
+    padding: 22px;
+    margin-bottom: 20px;
+    transition: 0.25s ease;
+}
+.post-card:hover {
+    border-color: #2e90ff;
+    transform: scale(1.01);
+}
+.avatar {
+    width: 48px;
+    height: 48px;
+    background: linear-gradient(135deg, #2e90ff, #7c3aed);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 20px;
+    color: white;
+}
+.stButton > button {
+    background: linear-gradient(95deg, #2e90ff, #1c6fd6);
+    color: white;
+    border: none;
+    border-radius: 40px;
+    padding: 10px 24px;
+    font-weight: 600;
+    transition: 0.2s;
+    width: 100%;
+}
+.stButton > button:hover {
+    transform: scale(1.02);
+    background: linear-gradient(95deg, #3a9eff, #2a7fe6);
+}
+section[data-testid="stSidebar"] {
+    background: rgba(5, 10, 20, 0.9);
+    backdrop-filter: blur(16px);
+    border-right: 1px solid rgba(46,144,255,0.2);
+}
+.suggestion-item {
+    background: rgba(46,144,255,0.1);
+    border-radius: 20px;
+    padding: 12px;
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+</style>
+""", unsafe_allow_html=True)
+
+def avatar(name):
+    initial = name[0].upper() if name else "?"
+    return f'<div class="avatar">{initial}</div>'
+
+# =========================
+# LOGIN / REGISTER
+# =========================
+def login_page():
+    st.markdown("""
+    <div class="hero">
+        <div class="hero-title">🌐 LinkUpDS</div>
+        <p style="font-size:20px; color:#94a3b8;">Le réseau social qui comprend tes connexions</p>
+    </div>
+    """, unsafe_allow_html=True)
+    tab1, tab2 = st.tabs(["🔐 Se connecter", "✨ Rejoindre"])
+    with tab1:
+        with st.form("login"):
+            email = st.text_input("Email")
+            pwd = st.text_input("Mot de passe", type="password")
+            if st.form_submit_button("Connexion", use_container_width=True):
+                user = st.session_state.db.get_user_by_email(email)
+                if user:
+                    st.session_state.user_id = user["userId"]
+                    st.session_state.user_name = user["name"]
+                    st.rerun()
+                else:
+                    st.error("Identifiants invalides")
+    with tab2:
+        with st.form("signup"):
+            name = st.text_input("Nom complet")
+            email = st.text_input("Email")
+            pwd = st.text_input("Mot de passe", type="password")
+            if st.form_submit_button("Créer mon compte", use_container_width=True):
+                uid = f"user_{uuid.uuid4().hex[:8]}"
+                st.session_state.db.create_user(uid, name, email, pwd)
+                st.success("Compte créé ✅ Connecte-toi")
+                st.rerun()
+
+# =========================
+# HOME
+# =========================
+def home_page():
+    st.markdown(f"""
+    <div class="hero">
+        <div class="hero-title">Bienvenue, {st.session_state.user_name}</div>
+        <p>Explore, partage, connecte-toi intelligemment.</p>
+    </div>
+    """, unsafe_allow_html=True)
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        if st.button("📰 Feed", use_container_width=True):
+            st.session_state.page = "feed"
+            st.rerun()
+    with c2:
+        if st.button("➕ Publier", use_container_width=True):
+            st.session_state.page = "create"
+            st.rerun()
+    with c3:
+        if st.button("👤 Profil", use_container_width=True):
+            st.session_state.page = "profile"
+            st.rerun()
+
+# =========================
+# FEED INTELLIGENT
+# =========================
+def feed_page():
+    st.markdown("<h1 style='text-align:center;'>📰 Fil d’actualité</h1>", unsafe_allow_html=True)
+    
+    # Récupération des posts des suivis + propres posts
+    followed_posts = st.session_state.db.get_feed(st.session_state.user_id)
+    own_posts = st.session_state.db.get_posts_by_user(st.session_state.user_id)
+    
+    all_posts = followed_posts + own_posts
+    all_posts = list({p.get("postId"): p for p in all_posts if p}.values())
+    
+    if not all_posts:
+        st.info("✨ Publie ton premier post ou suis d'autres membres.")
+        return
+    
+    for post in all_posts:
+        author = post.get("author", {})
+        author_id = author.get("userId")
+        name = author.get("name", "Membre")
+        content = post.get("content", "")
+        post_id = post.get("postId")
+        likes = st.session_state.db.get_likes_count(post_id)
+        
+        col1, col2 = st.columns([0.9, 0.1])
+        with col1:
+            st.markdown(f"""
+            <div class="post-card">
+                <div style="display:flex; align-items:center; gap:14px;">
+                    {avatar(name)}
+                    <b style="font-size:18px;">{name}</b>
+                </div>
+                <p style="margin-top:12px; font-size:16px;">{content}</p>
+                <div style="display:flex; gap:20px; margin-top:12px;">
+                    <span>❤️ {likes}</span>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+        with col2:
+            if author_id != st.session_state.user_id:
+                following = [f["userId"] for f in st.session_state.db.get_following(st.session_state.user_id)]
+                if author_id in following:
+                    if st.button("❌ Ne plus suivre", key=f"unfollow_{post_id}"):
+                        st.session_state.db.unfollow(st.session_state.user_id, author_id)
+                        st.rerun()
+                else:
+                    if st.button("➕ Suivre", key=f"follow_{post_id}"):
+                        st.session_state.db.follow(st.session_state.user_id, author_id)
+                        st.rerun()
+            if st.button("❤️ Like", key=f"like_{post_id}"):
+                st.session_state.db.like_post(st.session_state.user_id, post_id)
+                st.rerun()
+
+# =========================
+# CREER POST
+# =========================
+def create_post_page():
+    st.markdown("<h1 style='text-align:center;'>✨ Nouvelle pensée</h1>", unsafe_allow_html=True)
+    with st.form("post"):
+        content = st.text_area("Exprime‑toi", height=160, placeholder="Quoi de neuf ?")
+        if st.form_submit_button("Publier", use_container_width=True):
+            if content.strip():
+                pid = f"post_{uuid.uuid4().hex[:8]}"
+                st.session_state.db.create_post(st.session_state.user_id, content, pid)
+                st.success("Post publié 🚀")
+                st.session_state.page = "feed"
+                st.rerun()
+
+# =========================
+# PROFIL AVEC STATS
+# =========================
+def profile_page():
+    user = st.session_state.db.get_user(st.session_state.user_id)
+    if user:
+        followers = st.session_state.db.get_followers(st.session_state.user_id)
+        following = st.session_state.db.get_following(st.session_state.user_id)
+        st.markdown(f"""
+        <div style="text-align:center;">
+            <div style="display:flex; justify-content:center;">{avatar(user.get('name','?'))}</div>
+            <h2>{user.get('name')}</h2>
+            <p style="color:#2e90ff;">@{user.get('userId')[:12]}</p>
+            <p>{user.get('email')}</p>
+            <div style="display:flex; gap:30px; justify-content:center; margin-top:20px;">
+                <div><b>{len(followers)}</b><br>abonnés</div>
+                <div><b>{len(following)}</b><br>abonnements</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+# =========================
+# SUGGESTIONS D'ABONNEMENTS
+# =========================
+def suggestions_section():
+    st.markdown("### 👥 Suggestions")
+    all_users = st.session_state.db.get_all_users()
+    following = [f["userId"] for f in st.session_state.db.get_following(st.session_state.user_id)]
+    suggestions = [u for u in all_users if u["userId"] != st.session_state.user_id and u["userId"] not in following][:5]
+    for u in suggestions:
+        col1, col2 = st.columns([3,1])
+        with col1:
+            st.write(f"**{u['name']}**")
+        with col2:
+            if st.button("Suivre", key=f"suggest_{u['userId']}"):
+                st.session_state.db.follow(st.session_state.user_id, u["userId"])
+                st.rerun()
+
+# =========================
+# SIDEBAR
+# =========================
+if st.session_state.user_id:
+    with st.sidebar:
+        st.markdown(f"### ✨ {st.session_state.user_name}")
+        st.markdown("---")
+        if st.button("🏠 Accueil", use_container_width=True):
+            st.session_state.page = "home"
+            st.rerun()
+        if st.button("📰 Feed", use_container_width=True):
+            st.session_state.page = "feed"
+            st.rerun()
+        if st.button("✏️ Publier", use_container_width=True):
+            st.session_state.page = "create"
+            st.rerun()
+        if st.button("👤 Profil", use_container_width=True):
+            st.session_state.page = "profile"
+            st.rerun()
+        st.markdown("---")
+        suggestions_section()
+        st.markdown("---")
+        if st.button("🔓 Déconnexion", use_container_width=True):
+            st.session_state.user_id = None
+            st.session_state.user_name = None
+            st.rerun()
+
+# =========================
+# ROUTAGE PRINCIPAL
+# =========================
+if not st.session_state.user_id:
+    login_page()
+else:
+    if st.session_state.page == "home":
+        home_page()
+    elif st.session_state.page == "feed":
+        feed_page()
+    elif st.session_state.page == "create":
+        create_post_page()
+    elif st.session_state.page == "profile":
+        profile_page()
+    else:
+        home_page()
