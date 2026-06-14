@@ -1,14 +1,94 @@
 """
 LinkUpDS – Design Premium + Feed Intelligent + Suggestions
+Frontend Streamlit connecté au backend FastAPI.
 """
 
 import streamlit as st
-import uuid
 import sys
 import os
+import requests
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from src.db_utils import LinkUpDB
+
+# =========================
+# CONFIG BACKEND URL
+# =========================
+API_URL = os.environ.get("API_URL", "http://127.0.0.1:8000")
+
+
+def _auth_headers():
+    token = st.session_state.get("access_token")
+    if token:
+        return {"Authorization": f"Bearer {token}"}
+    return {}
+
+
+def api_request(method, path, json_data=None, params=None, auth=True):
+    """Appel HTTP centralisé vers le backend FastAPI."""
+    try:
+        headers = _auth_headers() if auth else {}
+        kwargs = {"timeout": 15, "headers": headers}
+        if json_data is not None:
+            kwargs["json"] = json_data
+        if params:
+            kwargs["params"] = params
+
+        resp = requests.request(method, f"{API_URL}{path}", **kwargs)
+
+        if resp.status_code == 204:
+            return {"ok": True, "data": None}
+
+        data = None
+        if resp.content:
+            try:
+                data = resp.json()
+            except ValueError:
+                data = resp.text
+
+        if resp.ok:
+            return {"ok": True, "data": data}
+
+        error = "Erreur inconnue"
+        if isinstance(data, dict):
+            detail = data.get("detail")
+            if isinstance(detail, list):
+                error = detail[0].get("msg", str(detail)) if detail else error
+            elif detail:
+                error = detail
+        elif isinstance(data, str) and data:
+            error = data
+
+        return {"ok": False, "status": resp.status_code, "error": error}
+
+    except requests.exceptions.ConnectionError:
+        return {"ok": False, "error": "Backend indisponible. Lancez l'API avec : python -m uvicorn api:app"}
+    except requests.exceptions.Timeout:
+        return {"ok": False, "error": "Le backend met trop de temps à répondre."}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+
+
+def api_get(path, params=None, auth=True):
+    return api_request("GET", path, params=params, auth=auth)
+
+
+def api_post(path, data=None, auth=True):
+    return api_request("POST", path, json_data=data, auth=auth)
+
+
+def api_delete(path, auth=True):
+    return api_request("DELETE", path, auth=auth)
+
+
+def get_following_ids():
+    if "following_ids" not in st.session_state or not isinstance(st.session_state.following_ids, set):
+        st.session_state.following_ids = set()
+    return st.session_state.following_ids
+
+
+def invalidate_following_cache():
+    st.session_state.following_ids = set()
+
 
 # =========================
 # CONFIG PAGE
@@ -22,16 +102,16 @@ st.set_page_config(
 # =========================
 # SESSION STATE
 # =========================
-if "db" not in st.session_state:
-    st.session_state.db = LinkUpDB()
+if "access_token" not in st.session_state:
+    st.session_state.access_token = None
 if "user_id" not in st.session_state:
     st.session_state.user_id = None
 if "user_name" not in st.session_state:
     st.session_state.user_name = None
 if "page" not in st.session_state:
     st.session_state.page = "home"
-if "refresh_feed" not in st.session_state:
-    st.session_state.refresh_feed = False
+if "following_ids" not in st.session_state:
+    st.session_state.following_ids = None
 
 # =========================
 # CSS PREMIUM
@@ -139,12 +219,14 @@ section[data-testid="stSidebar"] {
 </style>
 """, unsafe_allow_html=True)
 
+
 def avatar(name):
     initial = name[0].upper() if name else "?"
     return f'<div class="avatar">{initial}</div>'
 
+
 # =========================
-# LOGIN / REGISTER
+# LOGIN / REGISTER (BACKEND)
 # =========================
 def login_page():
     st.markdown("""
@@ -153,29 +235,57 @@ def login_page():
         <p style="font-size:20px; color:#94a3b8;">Le réseau social qui comprend tes connexions</p>
     </div>
     """, unsafe_allow_html=True)
+
     tab1, tab2 = st.tabs(["🔐 Se connecter", "✨ Rejoindre"])
+
     with tab1:
         with st.form("login"):
             email = st.text_input("Email")
             pwd = st.text_input("Mot de passe", type="password")
+
             if st.form_submit_button("Connexion", use_container_width=True):
-                user = st.session_state.db.get_user_by_email(email)
-                if user:
-                    st.session_state.user_id = user["userId"]
-                    st.session_state.user_name = user["name"]
-                    st.rerun()
+                res = api_post("/auth/login", {"email": email, "password": pwd}, auth=False)
+
+                if res["ok"]:
+                    token_data = res.get("data")
+                    if not isinstance(token_data, dict) or not token_data.get("access_token"):
+                        st.error("Réponse de connexion invalide.")
+                        return
+
+                    st.session_state.access_token = token_data["access_token"]
+                    me = api_get("/auth/me")
+                    user_data = me.get("data")
+                    if me["ok"] and isinstance(user_data, dict) and user_data.get("userId"):
+                        st.session_state.user_id = user_data["userId"]
+                        st.session_state.user_name = user_data.get("name", "Membre")
+                        st.session_state.page = "home"
+                        invalidate_following_cache()
+                        st.rerun()
+                    else:
+                        st.session_state.access_token = None
+                        st.error(me.get("error", "Impossible de récupérer le profil."))
                 else:
-                    st.error("Identifiants invalides")
+                    st.error(res.get("error", "Identifiants invalides"))
+
     with tab2:
         with st.form("signup"):
             name = st.text_input("Nom complet")
             email = st.text_input("Email")
             pwd = st.text_input("Mot de passe", type="password")
+
             if st.form_submit_button("Créer mon compte", use_container_width=True):
-                uid = f"user_{uuid.uuid4().hex[:8]}"
-                st.session_state.db.create_user(uid, name, email, pwd)
-                st.success("Compte créé ✅ Connecte-toi")
-                st.rerun()
+                res = api_post("/auth/register", {
+                    "name": name,
+                    "email": email,
+                    "password": pwd,
+                }, auth=False)
+
+                if res["ok"]:
+                    st.success("Compte créé ✅ Connecte-toi")
+                    st.rerun()
+                else:
+                    st.error(res.get("error", "Erreur création compte"))
+
 
 # =========================
 # HOME
@@ -187,7 +297,9 @@ def home_page():
         <p>Explore, partage, connecte-toi intelligemment.</p>
     </div>
     """, unsafe_allow_html=True)
+
     c1, c2, c3 = st.columns(3)
+
     with c1:
         if st.button("📰 Feed", use_container_width=True):
             st.session_state.page = "feed"
@@ -201,32 +313,51 @@ def home_page():
             st.session_state.page = "profile"
             st.rerun()
 
+
 # =========================
-# FEED INTELLIGENT
+# FEED INTELLIGENT (BACKEND)
 # =========================
 def feed_page():
-    st.markdown("<h1 style='text-align:center;'>📰 Fil d’actualité</h1>", unsafe_allow_html=True)
-    
-    # Récupération des posts des suivis + propres posts
-    followed_posts = st.session_state.db.get_feed(st.session_state.user_id)
-    own_posts = st.session_state.db.get_posts_by_user(st.session_state.user_id)
-    
-    all_posts = followed_posts + own_posts
-    all_posts = list({p.get("postId"): p for p in all_posts if p}.values())
-    
+    st.markdown("<h1 style='text-align:center;'>📰 Fil d'actualité</h1>", unsafe_allow_html=True)
+
+    feed_res = api_get(
+        f"/feed/{st.session_state.user_id}",
+        params={"limit": 100},
+    )
+
+    if not feed_res["ok"]:
+        st.error(feed_res.get("error", "Impossible de charger le feed."))
+        return
+
+    if not isinstance(feed_res["data"], list):
+        st.error("Réponse API invalide pour le feed.")
+        return
+
+    all_posts = feed_res["data"]
+
     if not all_posts:
         st.info("✨ Publie ton premier post ou suis d'autres membres.")
         return
-    
+
+    following_ids = get_following_ids()
     for post in all_posts:
-        author = post.get("author", {})
+        author_id = (post.get("author") or {}).get("userId") if isinstance(post, dict) else None
+        if author_id and author_id != st.session_state.user_id:
+            following_ids.add(author_id)
+
+    for post in all_posts:
+        if not isinstance(post, dict):
+            continue
+
+        author = post.get("author") or {}
         author_id = author.get("userId")
         name = author.get("name", "Membre")
         content = post.get("content", "")
         post_id = post.get("postId")
-        likes = st.session_state.db.get_likes_count(post_id)
-        
+        likes = post.get("likeCount", 0)
+
         col1, col2 = st.columns([0.9, 0.1])
+
         with col1:
             st.markdown(f"""
             <div class="post-card">
@@ -240,73 +371,95 @@ def feed_page():
                 </div>
             </div>
             """, unsafe_allow_html=True)
+
         with col2:
-            if author_id != st.session_state.user_id:
-                following = [f["userId"] for f in st.session_state.db.get_following(st.session_state.user_id)]
-                if author_id in following:
+            if author_id and author_id != st.session_state.user_id:
+                if author_id in following_ids:
                     if st.button("❌ Ne plus suivre", key=f"unfollow_{post_id}"):
-                        st.session_state.db.unfollow(st.session_state.user_id, author_id)
-                        st.rerun()
+                        res = api_delete(f"/follows/{author_id}")
+                        if res["ok"]:
+                            following_ids.discard(author_id)
+                            invalidate_following_cache()
+                            st.rerun()
+                        else:
+                            st.error(res.get("error", "Erreur lors du désabonnement."))
                 else:
                     if st.button("➕ Suivre", key=f"follow_{post_id}"):
-                        st.session_state.db.follow(st.session_state.user_id, author_id)
-                        st.rerun()
+                        res = api_post(f"/follows/{author_id}")
+                        if res["ok"]:
+                            following_ids.add(author_id)
+                            invalidate_following_cache()
+                            st.rerun()
+                        else:
+                            st.error(res.get("error", "Erreur lors du suivi."))
+
             if st.button("❤️ Like", key=f"like_{post_id}"):
-                st.session_state.db.like_post(st.session_state.user_id, post_id)
-                st.rerun()
+                res = api_post(f"/likes/{post_id}")
+                if res["ok"]:
+                    st.rerun()
+                else:
+                    st.error(res.get("error", "Erreur lors du like."))
+
 
 # =========================
-# CREER POST
+# CREER POST (BACKEND)
 # =========================
 def create_post_page():
     st.markdown("<h1 style='text-align:center;'>✨ Nouvelle pensée</h1>", unsafe_allow_html=True)
+
     with st.form("post"):
         content = st.text_area("Exprime‑toi", height=160, placeholder="Quoi de neuf ?")
+
         if st.form_submit_button("Publier", use_container_width=True):
             if content.strip():
-                pid = f"post_{uuid.uuid4().hex[:8]}"
-                st.session_state.db.create_post(st.session_state.user_id, content, pid)
-                st.success("Post publié 🚀")
-                st.session_state.page = "feed"
-                st.rerun()
+                res = api_post("/posts/", {"content": content.strip(), "topic": "general"})
+                if res["ok"]:
+                    st.success("Post publié 🚀")
+                    st.session_state.page = "feed"
+                    st.rerun()
+                else:
+                    st.error(res.get("error", "Erreur lors de la publication."))
+            else:
+                st.warning("Le contenu ne peut pas être vide.")
+
 
 # =========================
-# PROFIL AVEC STATS
+# PROFIL AVEC STATS (BACKEND)
 # =========================
 def profile_page():
-    user = st.session_state.db.get_user(st.session_state.user_id)
-    if user:
-        followers = st.session_state.db.get_followers(st.session_state.user_id)
-        following = st.session_state.db.get_following(st.session_state.user_id)
-        st.markdown(f"""
-        <div style="text-align:center;">
-            <div style="display:flex; justify-content:center;">{avatar(user.get('name','?'))}</div>
-            <h2>{user.get('name')}</h2>
-            <p style="color:#2e90ff;">@{user.get('userId')[:12]}</p>
-            <p>{user.get('email')}</p>
-            <div style="display:flex; gap:30px; justify-content:center; margin-top:20px;">
-                <div><b>{len(followers)}</b><br>abonnés</div>
-                <div><b>{len(following)}</b><br>abonnements</div>
-            </div>
+    user_res = api_get(f"/users/{st.session_state.user_id}")
+
+    if not user_res["ok"]:
+        st.error(user_res.get("error", "Impossible de charger le profil."))
+        return
+
+    user = user_res["data"]
+
+    if not isinstance(user, dict):
+        st.error("Réponse API invalide pour le profil.")
+        return
+
+    st.markdown(f"""
+    <div style="text-align:center;">
+        <div style="display:flex; justify-content:center;">{avatar(user.get('name', '?'))}</div>
+        <h2>{user.get('name')}</h2>
+        <p style="color:#2e90ff;">@{user.get('username') or user.get('userId', '')[:12]}</p>
+        <p>{user.get('email')}</p>
+        <div style="display:flex; gap:30px; justify-content:center; margin-top:20px;">
+            <div><b>-</b><br>abonnés</div>
+            <div><b>{len(get_following_ids())}</b><br>abonnements</div>
         </div>
-        """, unsafe_allow_html=True)
+    </div>
+    """, unsafe_allow_html=True)
+
 
 # =========================
-# SUGGESTIONS D'ABONNEMENTS
+# SUGGESTIONS D'ABONNEMENTS (BACKEND)
 # =========================
 def suggestions_section():
     st.markdown("### 👥 Suggestions")
-    all_users = st.session_state.db.get_all_users()
-    following = [f["userId"] for f in st.session_state.db.get_following(st.session_state.user_id)]
-    suggestions = [u for u in all_users if u["userId"] != st.session_state.user_id and u["userId"] not in following][:5]
-    for u in suggestions:
-        col1, col2 = st.columns([3,1])
-        with col1:
-            st.write(f"**{u['name']}**")
-        with col2:
-            if st.button("Suivre", key=f"suggest_{u['userId']}"):
-                st.session_state.db.follow(st.session_state.user_id, u["userId"])
-                st.rerun()
+    st.caption("Suggestions indisponibles pour le moment.")
+
 
 # =========================
 # SIDEBAR
@@ -315,6 +468,7 @@ if st.session_state.user_id:
     with st.sidebar:
         st.markdown(f"### ✨ {st.session_state.user_name}")
         st.markdown("---")
+
         if st.button("🏠 Accueil", use_container_width=True):
             st.session_state.page = "home"
             st.rerun()
@@ -327,13 +481,19 @@ if st.session_state.user_id:
         if st.button("👤 Profil", use_container_width=True):
             st.session_state.page = "profile"
             st.rerun()
+
         st.markdown("---")
         suggestions_section()
         st.markdown("---")
+
         if st.button("🔓 Déconnexion", use_container_width=True):
+            st.session_state.access_token = None
             st.session_state.user_id = None
             st.session_state.user_name = None
+            st.session_state.page = "home"
+            invalidate_following_cache()
             st.rerun()
+
 
 # =========================
 # ROUTAGE PRINCIPAL
