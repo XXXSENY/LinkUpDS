@@ -271,6 +271,41 @@ def avatar(name):
     return f'<div class="avatar">{initial}</div>'
 
 
+def load_feed_posts(limit=100):
+    feed_res = api_get(
+        f"/feed/{st.session_state.user_id}",
+        params={"limit": limit},
+    )
+
+    if not feed_res["ok"]:
+        return None, feed_res.get("error", "Impossible de charger le feed.")
+
+    if not isinstance(feed_res["data"], list):
+        return None, "Réponse API invalide pour le feed."
+
+    return feed_res["data"], None
+
+
+def render_post_card(post):
+    author = post.get("author") or {}
+    name = author.get("name", "Membre")
+    content = post.get("content", "")
+    likes = post.get("likeCount", 0)
+
+    st.markdown(f"""
+    <div class="post-card">
+        <div style="display:flex; align-items:center; gap:14px;">
+            {avatar(name)}
+            <b style="font-size:18px;">{name}</b>
+        </div>
+        <p style="margin-top:12px; font-size:16px;">{content}</p>
+        <div style="display:flex; gap:20px; margin-top:12px;">
+            <span>❤️ {likes}</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+
 # =========================
 # LOGIN / REGISTER (BACKEND)
 # =========================
@@ -384,30 +419,16 @@ def home_page():
 def feed_page():
     st.markdown("<h1 style='text-align:center;'>📰 Fil d'actualité</h1>", unsafe_allow_html=True)
 
-    feed_res = api_get(
-        f"/feed/{st.session_state.user_id}",
-        params={"limit": 100},
-    )
-
-    if not feed_res["ok"]:
-        st.error(feed_res.get("error", "Impossible de charger le feed."))
+    all_posts, error = load_feed_posts()
+    if error:
+        st.error(error)
         return
-
-    if not isinstance(feed_res["data"], list):
-        st.error("Réponse API invalide pour le feed.")
-        return
-
-    all_posts = feed_res["data"]
 
     if not all_posts:
-        st.info("✨ Publie ton premier post ou suis d'autres membres.")
+        st.info("✨ Aucun post à afficher pour le moment.")
         return
 
     following_ids = get_following_ids()
-    for post in all_posts:
-        author_id = (post.get("author") or {}).get("userId") if isinstance(post, dict) else None
-        if author_id and author_id != st.session_state.user_id:
-            following_ids.add(author_id)
 
     for post in all_posts:
         if not isinstance(post, dict):
@@ -415,26 +436,12 @@ def feed_page():
 
         author = post.get("author") or {}
         author_id = author.get("userId")
-        name = author.get("name", "Membre")
-        content = post.get("content", "")
         post_id = post.get("postId")
-        likes = post.get("likeCount", 0)
 
         col1, col2 = st.columns([0.9, 0.1])
 
         with col1:
-            st.markdown(f"""
-            <div class="post-card">
-                <div style="display:flex; align-items:center; gap:14px;">
-                    {avatar(name)}
-                    <b style="font-size:18px;">{name}</b>
-                </div>
-                <p style="margin-top:12px; font-size:16px;">{content}</p>
-                <div style="display:flex; gap:20px; margin-top:12px;">
-                    <span>❤️ {likes}</span>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
+            render_post_card(post)
 
         with col2:
             if author_id and author_id != st.session_state.user_id:
@@ -515,6 +522,26 @@ def profile_page():
         </div>
     </div>
     """, unsafe_allow_html=True)
+
+    st.markdown("<h2 style='text-align:center; margin-top:40px;'>Mes publications</h2>", unsafe_allow_html=True)
+
+    feed_posts, error = load_feed_posts()
+    if error:
+        st.warning(error)
+        return
+
+    my_posts = [
+        post for post in feed_posts
+        if isinstance(post, dict)
+        and (post.get("author") or {}).get("userId") == st.session_state.user_id
+    ]
+
+    if not my_posts:
+        st.info("Aucune publication personnelle à afficher pour le moment.")
+        return
+
+    for post in my_posts:
+        render_post_card(post)
 
 
 # =========================
