@@ -112,6 +112,10 @@ if "page" not in st.session_state:
     st.session_state.page = "home"
 if "following_ids" not in st.session_state:
     st.session_state.following_ids = None
+if "flash_message" not in st.session_state:
+    st.session_state.flash_message = None
+if "flash_type" not in st.session_state:
+    st.session_state.flash_type = "success"
 
 # =========================
 # CSS PREMIUM
@@ -122,8 +126,11 @@ st.markdown("""
 * { font-family: 'Inter', sans-serif; }
 
 .stApp {
-    background: radial-gradient(circle at 10% 20%, #0a0f1e, #03050b);
-    color: #ffffff;
+    background: radial-gradient(circle at 10% 20%, #eaf4ff, #f8fbff 45%, #eef2ff);
+    color: #102033;
+}
+.stApp, .stApp p, .stApp span, .stApp label, .stApp div {
+    color: #102033;
 }
 .block-container {
     animation: fadeIn 0.8s cubic-bezier(0.2, 0.9, 0.4, 1.1);
@@ -133,12 +140,13 @@ st.markdown("""
     to { opacity: 1; transform: translateY(0);}
 }
 .premium-card {
-    background: rgba(15, 25, 40, 0.6);
+    background: rgba(255, 255, 255, 0.86);
     backdrop-filter: blur(14px);
-    border: 1px solid rgba(46, 144, 255, 0.2);
+    border: 1px solid rgba(46, 144, 255, 0.22);
     border-radius: 28px;
     padding: 24px;
     transition: all 0.3s ease;
+    box-shadow: 0 18px 45px rgba(30, 64, 175, 0.12);
 }
 .premium-card:hover {
     border-color: rgba(46, 144, 255, 0.6);
@@ -147,14 +155,16 @@ st.markdown("""
 .hero {
     text-align: center;
     padding: 50px 20px;
-    background: linear-gradient(135deg, rgba(46,144,255,0.15), rgba(0,212,255,0.05));
+    background: linear-gradient(135deg, rgba(255,255,255,0.92), rgba(219,234,254,0.86));
+    border: 1px solid rgba(46,144,255,0.18);
     border-radius: 60px;
     margin-bottom: 40px;
+    box-shadow: 0 24px 60px rgba(37, 99, 235, 0.13);
 }
 .hero-title {
     font-size: 68px;
     font-weight: 800;
-    background: linear-gradient(90deg, #2e90ff, #00d4ff, #7c3aed);
+    background: linear-gradient(90deg, #0f5fc6, #008eb8, #6d28d9);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     animation: glow 3s infinite alternate;
@@ -164,13 +174,14 @@ st.markdown("""
     100% { text-shadow: 0 0 30px rgba(0,212,255,0.6);}
 }
 .post-card {
-    background: rgba(18, 28, 45, 0.7);
+    background: rgba(255, 255, 255, 0.9);
     backdrop-filter: blur(12px);
-    border: 1px solid rgba(46, 144, 255, 0.2);
+    border: 1px solid rgba(46, 144, 255, 0.18);
     border-radius: 24px;
     padding: 22px;
     margin-bottom: 20px;
     transition: 0.25s ease;
+    box-shadow: 0 14px 35px rgba(15, 23, 42, 0.08);
 }
 .post-card:hover {
     border-color: #2e90ff;
@@ -203,9 +214,24 @@ st.markdown("""
     background: linear-gradient(95deg, #3a9eff, #2a7fe6);
 }
 section[data-testid="stSidebar"] {
-    background: rgba(5, 10, 20, 0.9);
+    background: rgba(255, 255, 255, 0.94);
     backdrop-filter: blur(16px);
     border-right: 1px solid rgba(46,144,255,0.2);
+}
+section[data-testid="stSidebar"] * {
+    color: #102033;
+}
+.stTextInput input, .stTextArea textarea {
+    background: #ffffff;
+    color: #102033;
+    border: 1px solid rgba(37, 99, 235, 0.24);
+}
+.stTextInput input::placeholder, .stTextArea textarea::placeholder {
+    color: #64748b;
+}
+div[data-baseweb="tab-list"] button p {
+    color: #102033;
+    font-weight: 700;
 }
 .suggestion-item {
     background: rgba(46,144,255,0.1);
@@ -220,6 +246,26 @@ section[data-testid="stSidebar"] {
 """, unsafe_allow_html=True)
 
 
+def show_flash_message():
+    if not st.session_state.flash_message:
+        return
+
+    message = st.session_state.flash_message
+    flash_type = st.session_state.flash_type
+    st.session_state.flash_message = None
+    st.session_state.flash_type = "success"
+
+    if flash_type == "error":
+        st.error(message)
+    elif flash_type == "warning":
+        st.warning(message)
+    else:
+        st.success(message)
+
+
+show_flash_message()
+
+
 def avatar(name):
     initial = name[0].upper() if name else "?"
     return f'<div class="avatar">{initial}</div>'
@@ -232,7 +278,7 @@ def login_page():
     st.markdown("""
     <div class="hero">
         <div class="hero-title">🌐 LinkUpDS</div>
-        <p style="font-size:20px; color:#94a3b8;">Le réseau social qui comprend tes connexions</p>
+        <p style="font-size:20px; color:#334155;">Le réseau social qui comprend tes connexions</p>
     </div>
     """, unsafe_allow_html=True)
 
@@ -281,7 +327,25 @@ def login_page():
                 }, auth=False)
 
                 if res["ok"]:
-                    st.success("Compte créé ✅ Connecte-toi")
+                    login_res = api_post("/auth/login", {"email": email, "password": pwd}, auth=False)
+                    token_data = login_res.get("data")
+
+                    if login_res["ok"] and isinstance(token_data, dict) and token_data.get("access_token"):
+                        st.session_state.access_token = token_data["access_token"]
+                        me = api_get("/auth/me")
+                        user_data = me.get("data")
+
+                        if me["ok"] and isinstance(user_data, dict) and user_data.get("userId"):
+                            st.session_state.user_id = user_data["userId"]
+                            st.session_state.user_name = user_data.get("name", name or "Membre")
+                            st.session_state.page = "home"
+                            invalidate_following_cache()
+                            st.session_state.flash_message = "Compte créé avec succès. Bienvenue sur LinkUpDS."
+                            st.session_state.flash_type = "success"
+                            st.rerun()
+
+                    st.session_state.flash_message = "Compte créé avec succès. Connecte-toi pour continuer."
+                    st.session_state.flash_type = "success"
                     st.rerun()
                 else:
                     st.error(res.get("error", "Erreur création compte"))
