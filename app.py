@@ -15,6 +15,11 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 # =========================
 API_URL = os.environ.get("API_URL", "http://127.0.0.1:8000")
 
+# Endpoints profil (définis dans src/routers/users.py — redémarrer l'API si 404)
+API_USER_FOLLOWERS = "/users/{user_id}/followers"
+API_USER_FOLLOWING = "/users/{user_id}/following"
+API_USER_POSTS = "/users/{user_id}/posts"
+
 
 def _auth_headers():
     token = st.session_state.get("access_token")
@@ -80,14 +85,104 @@ def api_delete(path, auth=True):
     return api_request("DELETE", path, auth=auth)
 
 
+def _api_error_message(res, fallback="Erreur API"):
+    """Message d'erreur lisible selon le code HTTP."""
+    status_code = res.get("status")
+    error = res.get("error", fallback)
+
+    if status_code == 401:
+        return "Session expirée. Reconnecte-toi."
+    if status_code == 403:
+        return error or "Action non autorisée."
+    if status_code == 404 and error == "Not Found":
+        return (
+            "Endpoint backend introuvable. "
+            "Redémarre l'API : python -m uvicorn api:app --reload"
+        )
+    if status_code == 404:
+        return error or "Ressource introuvable."
+    if status_code == 500:
+        return error or "Erreur interne du serveur."
+    return error or fallback
+
+
+def _is_endpoint_missing(res):
+    return res.get("status") == 404 and res.get("error") == "Not Found"
+
+
+def load_follow_stats(user_id):
+    """Récupère followers et following depuis le backend."""
+    followers_res = api_get(API_USER_FOLLOWERS.format(user_id=user_id))
+    following_res = api_get(API_USER_FOLLOWING.format(user_id=user_id))
+
+    errors = []
+    followers = []
+    following = []
+
+    if followers_res["ok"] and isinstance(followers_res["data"], list):
+        followers = followers_res["data"]
+    elif _is_endpoint_missing(followers_res):
+        errors.append(_api_error_message(followers_res))
+    elif not followers_res["ok"]:
+        errors.append(_api_error_message(followers_res, "Impossible de charger les abonnés."))
+
+    if following_res["ok"] and isinstance(following_res["data"], list):
+        following = following_res["data"]
+    elif _is_endpoint_missing(following_res):
+        if not errors:
+            errors.append(_api_error_message(following_res))
+    elif not following_res["ok"]:
+        errors.append(_api_error_message(following_res, "Impossible de charger les abonnements."))
+
+    return followers, following, errors
+
+
 def get_following_ids():
+    _, following, _ = load_follow_stats(st.session_state.user_id)
+    api_ids = {u.get("userId") for u in following if u.get("userId")}
+    if api_ids:
+        st.session_state.following_ids = api_ids
+        return api_ids
+
     if "following_ids" not in st.session_state or not isinstance(st.session_state.following_ids, set):
         st.session_state.following_ids = set()
     return st.session_state.following_ids
 
 
-def invalidate_following_cache():
-    st.session_state.following_ids = set()
+def remember_created_post(post_data):
+    if not isinstance(post_data, dict):
+        return
+    post_id = post_data.get("postId")
+    if not post_id:
+        return
+    if "my_post_ids" not in st.session_state:
+        st.session_state.my_post_ids = []
+    if post_id not in st.session_state.my_post_ids:
+        st.session_state.my_post_ids.insert(0, post_id)
+
+
+def load_user_posts(user_id, limit=100):
+    """Récupère les publications via GET /users/{user_id}/posts."""
+    res = api_get(API_USER_POSTS.format(user_id=user_id), params={"limit": limit})
+    if res["ok"] and isinstance(res["data"], list):
+        for post in res["data"]:
+            remember_created_post(post)
+        return res["data"], None
+
+    if _is_endpoint_missing(res):
+        return _load_user_posts_fallback(), _api_error_message(res)
+
+    return [], _api_error_message(res, "Impossible de charger vos publications.")
+
+
+def _load_user_posts_fallback():
+    """Secours : GET /posts/{post_id} pour les posts mémorisés en session."""
+    posts = []
+    for post_id in st.session_state.get("my_post_ids", []):
+        res = api_get(f"/posts/{post_id}")
+        if res["ok"] and isinstance(res["data"], dict):
+            posts.append(res["data"])
+    return posts
 
 
 # =========================
@@ -110,12 +205,14 @@ if "user_name" not in st.session_state:
     st.session_state.user_name = None
 if "page" not in st.session_state:
     st.session_state.page = "home"
-if "following_ids" not in st.session_state:
-    st.session_state.following_ids = None
 if "flash_message" not in st.session_state:
     st.session_state.flash_message = None
 if "flash_type" not in st.session_state:
     st.session_state.flash_type = "success"
+if "following_ids" not in st.session_state:
+    st.session_state.following_ids = set()
+if "my_post_ids" not in st.session_state:
+    st.session_state.my_post_ids = []
 
 # =========================
 # CSS PREMIUM
@@ -340,7 +437,8 @@ def login_page():
                         st.session_state.user_id = user_data["userId"]
                         st.session_state.user_name = user_data.get("name", "Membre")
                         st.session_state.page = "home"
-                        invalidate_following_cache()
+                        st.session_state.following_ids = set()
+                        st.session_state.my_post_ids = []
                         st.rerun()
                     else:
                         st.session_state.access_token = None
@@ -374,7 +472,8 @@ def login_page():
                             st.session_state.user_id = user_data["userId"]
                             st.session_state.user_name = user_data.get("name", name or "Membre")
                             st.session_state.page = "home"
-                            invalidate_following_cache()
+                            st.session_state.following_ids = set()
+                            st.session_state.my_post_ids = []
                             st.session_state.flash_message = "Compte créé avec succès. Bienvenue sur LinkUpDS."
                             st.session_state.flash_type = "success"
                             st.rerun()
@@ -449,27 +548,25 @@ def feed_page():
                     if st.button("Ne plus suivre", key=f"unfollow_{post_id}"):
                         res = api_delete(f"/follows/{author_id}")
                         if res["ok"]:
-                            following_ids.discard(author_id)
-                            invalidate_following_cache()
+                            st.session_state.following_ids.discard(author_id)
                             st.rerun()
                         else:
-                            st.error(res.get("error", "Erreur lors du désabonnement."))
+                            st.error(_api_error_message(res, "Erreur lors du désabonnement."))
                 else:
                     if st.button("Suivre", key=f"follow_{post_id}"):
                         res = api_post(f"/follows/{author_id}")
                         if res["ok"]:
-                            following_ids.add(author_id)
-                            invalidate_following_cache()
+                            st.session_state.following_ids.add(author_id)
                             st.rerun()
                         else:
-                            st.error(res.get("error", "Erreur lors du suivi."))
+                            st.error(_api_error_message(res, "Erreur lors du suivi."))
 
             if st.button("Like", key=f"like_{post_id}"):
                 res = api_post(f"/likes/{post_id}")
                 if res["ok"]:
                     st.rerun()
                 else:
-                    st.error(res.get("error", "Erreur lors du like."))
+                    st.error(_api_error_message(res, "Erreur lors du like."))
 
 
 # =========================
@@ -485,6 +582,7 @@ def create_post_page():
             if content.strip():
                 res = api_post("/posts/", {"content": content.strip(), "topic": "general"})
                 if res["ok"]:
+                    remember_created_post(res.get("data"))
                     st.success("Post publié")
                     st.session_state.page = "feed"
                     st.rerun()
@@ -510,6 +608,11 @@ def profile_page():
         st.error("Réponse API invalide pour le profil.")
         return
 
+    # Compteurs followers / following synchronisés avec le backend
+    followers, following, stats_errors = load_follow_stats(st.session_state.user_id)
+    for msg in stats_errors:
+        st.warning(msg)
+
     st.markdown(f"""
     <div style="text-align:center;">
         <div style="display:flex; justify-content:center;">{avatar(user.get('name', '?'))}</div>
@@ -517,31 +620,43 @@ def profile_page():
         <p style="color:#2e90ff;">@{user.get('username') or user.get('userId', '')[:12]}</p>
         <p>{user.get('email')}</p>
         <div style="display:flex; gap:30px; justify-content:center; margin-top:20px;">
-            <div><b>-</b><br>abonnés</div>
-            <div><b>{len(get_following_ids())}</b><br>abonnements</div>
+            <div><b>{len(followers)}</b><br>abonnés</div>
+            <div><b>{len(following)}</b><br>abonnements</div>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
     st.markdown("<h2 style='text-align:center; margin-top:40px;'>Mes publications</h2>", unsafe_allow_html=True)
 
-    feed_posts, error = load_feed_posts()
-    if error:
-        st.warning(error)
-        return
-
-    my_posts = [
-        post for post in feed_posts
-        if isinstance(post, dict)
-        and (post.get("author") or {}).get("userId") == st.session_state.user_id
-    ]
+    my_posts, posts_error = load_user_posts(st.session_state.user_id)
+    if posts_error:
+        st.warning(posts_error)
 
     if not my_posts:
         st.info("Aucune publication personnelle à afficher pour le moment.")
         return
 
     for post in my_posts:
-        render_post_card(post)
+        if not isinstance(post, dict):
+            continue
+
+        post_id = post.get("postId")
+        col1, col2 = st.columns([0.9, 0.1])
+
+        with col1:
+            render_post_card(post)
+
+        with col2:
+            if post_id and st.button("Supprimer", key=f"delete_post_{post_id}"):
+                res = api_delete(f"/posts/{post_id}")
+                if res["ok"]:
+                    if post_id in st.session_state.my_post_ids:
+                        st.session_state.my_post_ids.remove(post_id)
+                    st.session_state.flash_message = "Publication supprimée avec succès."
+                    st.session_state.flash_type = "success"
+                    st.rerun()
+                else:
+                    st.error(_api_error_message(res, "Erreur lors de la suppression."))
 
 
 # =========================
@@ -582,7 +697,8 @@ if st.session_state.user_id:
             st.session_state.user_id = None
             st.session_state.user_name = None
             st.session_state.page = "home"
-            invalidate_following_cache()
+            st.session_state.following_ids = set()
+            st.session_state.my_post_ids = []
             st.rerun()
 
 

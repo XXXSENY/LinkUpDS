@@ -1,8 +1,11 @@
 import logging
-from fastapi import APIRouter, HTTPException, Depends, status
+from typing import List
+
+from fastapi import APIRouter, HTTPException, Depends, status, Query
 
 from src.db_utils import LinkUpDB
 from src.models.user import UserResponse, UserUpdate
+from src.models.post import PostResponse
 from src.dependencies.auth import get_current_user
 
 logger = logging.getLogger(__name__)
@@ -13,6 +16,81 @@ router = APIRouter(
 )
 
 db = LinkUpDB()
+
+
+@router.get("/{user_id}/followers", response_model=List[UserResponse])
+def get_user_followers(user_id: str):
+    """Récupérer la liste des abonnés d'un utilisateur."""
+
+    user = db.get_user(user_id)
+    if not user:
+        logger.warning(f"GET /users/{user_id}/followers : utilisateur non trouvé")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Utilisateur introuvable",
+        )
+
+    try:
+        followers = db.get_followers(user_id)
+        logger.debug(f"Followers chargés pour {user_id} : {len(followers)}")
+        return followers
+    except Exception as e:
+        logger.error(f"Erreur lors du chargement des followers de {user_id} : {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Erreur lors du chargement des abonnés",
+        )
+
+
+@router.get("/{user_id}/following", response_model=List[UserResponse])
+def get_user_following(user_id: str):
+    """Récupérer la liste des abonnements d'un utilisateur."""
+
+    user = db.get_user(user_id)
+    if not user:
+        logger.warning(f"GET /users/{user_id}/following : utilisateur non trouvé")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Utilisateur introuvable",
+        )
+
+    try:
+        following = db.get_following(user_id)
+        logger.debug(f"Following chargé pour {user_id} : {len(following)}")
+        return following
+    except Exception as e:
+        logger.error(f"Erreur lors du chargement du following de {user_id} : {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Erreur lors du chargement des abonnements",
+        )
+
+
+@router.get("/{user_id}/posts", response_model=List[PostResponse])
+def get_user_posts(
+    user_id: str,
+    limit: int = Query(20, ge=1, le=100, description="Nombre de posts à retourner"),
+):
+    """Récupérer les publications d'un utilisateur."""
+
+    user = db.get_user(user_id)
+    if not user:
+        logger.warning(f"GET /users/{user_id}/posts : utilisateur non trouvé")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Utilisateur introuvable",
+        )
+
+    try:
+        posts = db.get_posts_by_user(user_id, limit=limit)
+        logger.debug(f"Posts chargés pour {user_id} : {len(posts)}")
+        return posts
+    except Exception as e:
+        logger.error(f"Erreur lors du chargement des posts de {user_id} : {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Erreur lors du chargement des publications",
+        )
 
 
 @router.get("/{user_id}", response_model=UserResponse)
