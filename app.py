@@ -220,124 +220,321 @@ if "my_post_ids" not in st.session_state:
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
-* { font-family: 'Inter', sans-serif; }
+* { font-family: 'Inter', sans-serif; box-sizing: border-box; }
 
 .stApp {
-    background: radial-gradient(circle at 10% 20%, #eaf4ff, #f8fbff 45%, #eef2ff);
-    color: #102033;
+    background: radial-gradient(circle at 12% 18%, #e8f2ff 0%, #f5f9ff 42%, #eef2ff 100%);
+    color: #0f172a;
 }
-.stApp, .stApp p, .stApp span, .stApp label, .stApp div {
-    color: #102033;
-}
+.stApp, .stApp p, .stApp span, .stApp label, .stApp div { color: #0f172a; }
+
 .block-container {
-    animation: fadeIn 0.8s cubic-bezier(0.2, 0.9, 0.4, 1.1);
+    max-width: 920px;
+    padding-top: 2rem;
+    animation: fadeIn 0.7s cubic-bezier(0.2, 0.9, 0.4, 1);
 }
 @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(30px);}
-    to { opacity: 1; transform: translateY(0);}
+    from { opacity: 0; transform: translateY(18px); }
+    to { opacity: 1; transform: translateY(0); }
 }
-.premium-card {
-    background: rgba(255, 255, 255, 0.86);
-    backdrop-filter: blur(14px);
-    border: 1px solid rgba(46, 144, 255, 0.22);
-    border-radius: 28px;
-    padding: 24px;
-    transition: all 0.3s ease;
-    box-shadow: 0 18px 45px rgba(30, 64, 175, 0.12);
+
+/* ——— Branding LinkUpDS ——— */
+.brand-logo {
+    display: inline-flex;
+    align-items: center;
+    gap: 14px;
+    justify-content: center;
 }
-.premium-card:hover {
-    border-color: rgba(46, 144, 255, 0.6);
-    transform: translateY(-6px);
+.brand-icon {
+    font-size: 52px;
+    filter: drop-shadow(0 0 18px rgba(46, 144, 255, 0.45));
+    animation: pulseIcon 3s ease-in-out infinite;
 }
-.hero {
-    text-align: center;
-    padding: 50px 20px;
-    background: linear-gradient(135deg, rgba(255,255,255,0.92), rgba(219,234,254,0.86));
-    border: 1px solid rgba(46,144,255,0.18);
-    border-radius: 60px;
-    margin-bottom: 40px;
-    box-shadow: 0 24px 60px rgba(37, 99, 235, 0.13);
+@keyframes pulseIcon {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.06); }
 }
-.hero-title {
-    font-size: 68px;
+.brand-text {
+    font-size: clamp(42px, 7vw, 68px);
     font-weight: 800;
-    background: linear-gradient(90deg, #0f5fc6, #008eb8, #6d28d9);
+    letter-spacing: -0.03em;
+    background: linear-gradient(120deg, #2563eb 0%, #0891b2 45%, #7c3aed 100%);
+    background-size: 200% auto;
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
-    animation: glow 3s infinite alternate;
+    animation: brandShine 4s linear infinite;
+    filter: drop-shadow(0 2px 24px rgba(37, 99, 235, 0.25));
 }
-@keyframes glow {
-    0% { text-shadow: 0 0 5px rgba(46,144,255,0.3);}
-    100% { text-shadow: 0 0 30px rgba(0,212,255,0.6);}
+@keyframes brandShine {
+    0% { background-position: 0% center; }
+    100% { background-position: 200% center; }
 }
+.page-title {
+    text-align: center;
+    font-size: 2rem;
+    font-weight: 700;
+    margin: 0 0 1.5rem;
+    background: linear-gradient(90deg, #1d4ed8, #6d28d9);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+/* ——— Hero & cards ——— */
+.hero {
+    text-align: center;
+    padding: 48px 28px;
+    background: linear-gradient(145deg, rgba(255,255,255,0.95), rgba(224,242,254,0.88));
+    border: 1px solid rgba(59, 130, 246, 0.2);
+    border-radius: 32px;
+    margin-bottom: 32px;
+    box-shadow: 0 20px 50px rgba(37, 99, 235, 0.1);
+}
+.hero-subtitle {
+    font-size: 1.15rem;
+    color: #475569 !important;
+    margin-top: 12px;
+}
+
 .post-card {
-    background: rgba(255, 255, 255, 0.9);
-    backdrop-filter: blur(12px);
-    border: 1px solid rgba(46, 144, 255, 0.18);
-    border-radius: 24px;
-    padding: 22px;
-    margin-bottom: 20px;
-    transition: 0.25s ease;
-    box-shadow: 0 14px 35px rgba(15, 23, 42, 0.08);
+    background: #ffffff;
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    border-radius: 20px;
+    padding: 20px 22px;
+    margin-bottom: 8px;
+    box-shadow: 0 8px 28px rgba(15, 23, 42, 0.06);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 .post-card:hover {
-    border-color: #2e90ff;
-    transform: scale(1.01);
+    border-color: rgba(59, 130, 246, 0.45);
+    box-shadow: 0 12px 32px rgba(37, 99, 235, 0.1);
 }
+.post-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+.post-author {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #0f172a;
+    margin: 0;
+}
+.post-content {
+    margin: 14px 0 0 62px;
+    font-size: 1rem;
+    line-height: 1.6;
+    color: #334155;
+}
+.post-stats {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 14px 0 0 62px;
+    font-size: 0.95rem;
+    color: #64748b;
+}
+.post-stats .like-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(239, 68, 68, 0.08);
+    color: #dc2626;
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-weight: 600;
+}
+
+/* ——— Avatar ——— */
 .avatar {
     width: 48px;
     height: 48px;
-    background: linear-gradient(135deg, #2e90ff, #7c3aed);
+    min-width: 48px;
+    background: linear-gradient(135deg, #3b82f6, #8b5cf6);
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-weight: bold;
-    font-size: 20px;
+    font-weight: 700;
+    font-size: 18px;
     color: white;
+    box-shadow: 0 4px 14px rgba(59, 130, 246, 0.35);
 }
-.stButton > button {
-    background: linear-gradient(95deg, #2e90ff, #1c6fd6);
-    color: white;
-    border: none;
-    border-radius: 40px;
-    padding: 10px 24px;
+.avatar-lg {
+    width: 88px;
+    height: 88px;
+    min-width: 88px;
+    font-size: 32px;
+    margin: 0 auto;
+    box-shadow: 0 8px 24px rgba(99, 102, 241, 0.35);
+}
+
+/* ——— Profil dashboard ——— */
+.profile-card {
+    text-align: center;
+    background: linear-gradient(160deg, #ffffff 0%, #f0f7ff 100%);
+    border: 1px solid rgba(59, 130, 246, 0.18);
+    border-radius: 28px;
+    padding: 36px 28px 28px;
+    margin-bottom: 28px;
+    box-shadow: 0 16px 40px rgba(37, 99, 235, 0.08);
+}
+.profile-name {
+    font-size: 1.75rem;
+    font-weight: 800;
+    margin: 16px 0 4px;
+    color: #0f172a;
+}
+.profile-username {
+    color: #2563eb;
     font-weight: 600;
-    transition: 0.2s;
+    font-size: 1rem;
+    margin: 0 0 6px;
+}
+.profile-email {
+    color: #64748b !important;
+    font-size: 0.95rem;
+    margin: 0 0 24px;
+}
+.profile-stats {
+    display: flex;
+    justify-content: center;
+    gap: 48px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(148, 163, 184, 0.2);
+}
+.stat-item b {
+    display: block;
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: #1e40af;
+}
+.stat-item span {
+    font-size: 0.85rem;
+    color: #64748b !important;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.section-title {
+    text-align: center;
+    font-size: 1.35rem;
+    font-weight: 700;
+    margin: 32px 0 20px;
+    color: #1e293b;
+}
+
+/* ——— Boutons uniformes ——— */
+.stButton > button {
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    color: white !important;
+    border: none;
+    border-radius: 14px;
+    min-height: 48px;
+    padding: 10px 18px;
+    font-weight: 600;
+    font-size: 0.95rem;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
     width: 100%;
+    box-shadow: 0 4px 14px rgba(37, 99, 235, 0.22);
 }
 .stButton > button:hover {
-    transform: scale(1.02);
-    background: linear-gradient(95deg, #3a9eff, #2a7fe6);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(37, 99, 235, 0.32);
+    background: linear-gradient(135deg, #60a5fa, #3b82f6);
 }
+.stButton > button:active {
+    transform: translateY(0);
+}
+.stButton > button p,
+.stButton > button span,
+.stButton > button div {
+    color: white !important;
+}
+
+/* Boutons icône (colonnes actions) */
+div[data-testid="column"]:has(.stButton) .stButton > button {
+    min-height: 44px;
+    font-size: 1.35rem;
+    padding: 8px 10px;
+    border-radius: 12px;
+}
+.stButton > button[kind="secondary"] {
+    background: #f1f5f9;
+    color: #334155 !important;
+    box-shadow: none;
+    border: 1px solid #e2e8f0;
+}
+
+/* ——— Sidebar ——— */
 section[data-testid="stSidebar"] {
-    background: rgba(255, 255, 255, 0.94);
-    backdrop-filter: blur(16px);
-    border-right: 1px solid rgba(46,144,255,0.2);
+    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+    border-right: 1px solid rgba(59, 130, 246, 0.15);
 }
-section[data-testid="stSidebar"] * {
-    color: #102033;
+section[data-testid="stSidebar"] * { color: #0f172a; }
+.sidebar-brand {
+    font-size: 1.1rem;
+    font-weight: 800;
+    background: linear-gradient(90deg, #2563eb, #7c3aed);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 4px;
 }
+.sidebar-user {
+    font-size: 0.9rem;
+    color: #64748b !important;
+    margin-bottom: 16px;
+}
+.sidebar-divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(59,130,246,0.25), transparent);
+    margin: 16px 0;
+}
+.suggestion-box {
+    background: rgba(239, 246, 255, 0.9);
+    border: 1px dashed rgba(59, 130, 246, 0.3);
+    border-radius: 16px;
+    padding: 14px;
+    text-align: center;
+}
+.suggestion-box p {
+    color: #64748b !important;
+    font-size: 0.85rem;
+    margin: 0;
+}
+section[data-testid="stSidebar"] .stButton > button {
+    min-height: 42px;
+    font-size: 0.88rem;
+    border-radius: 12px;
+    margin-bottom: 4px;
+}
+section[data-testid="stSidebar"] .stButton:last-of-type > button {
+    background: linear-gradient(135deg, #64748b, #475569);
+    box-shadow: 0 4px 12px rgba(71, 85, 105, 0.2);
+}
+
+/* ——— Formulaires ——— */
 .stTextInput input, .stTextArea textarea {
     background: #ffffff;
-    color: #102033;
-    border: 1px solid rgba(37, 99, 235, 0.24);
+    color: #0f172a;
+    border: 1px solid rgba(59, 130, 246, 0.22);
+    border-radius: 12px;
 }
-.stTextInput input::placeholder, .stTextArea textarea::placeholder {
-    color: #64748b;
+.stTextInput input:focus, .stTextArea textarea:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
 }
 div[data-baseweb="tab-list"] button p {
-    color: #102033;
+    color: #0f172a;
     font-weight: 700;
 }
-.suggestion-item {
-    background: rgba(46,144,255,0.1);
-    border-radius: 20px;
-    padding: 12px;
-    margin-bottom: 10px;
+
+/* ——— Action row feed/profil ——— */
+.action-stack {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
+    flex-direction: column;
+    gap: 8px;
+    align-items: stretch;
+    justify-content: flex-start;
+    padding-top: 8px;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -363,9 +560,19 @@ def show_flash_message():
 show_flash_message()
 
 
-def avatar(name):
+def avatar(name, large=False):
     initial = name[0].upper() if name else "?"
-    return f'<div class="avatar">{initial}</div>'
+    css_class = "avatar avatar-lg" if large else "avatar"
+    return f'<div class="{css_class}">{initial}</div>'
+
+
+def brand_logo_html():
+    return """
+    <div class="brand-logo">
+        <span class="brand-icon">🌐</span>
+        <span class="brand-text">LinkUpDS</span>
+    </div>
+    """
 
 
 def load_feed_posts(limit=100):
@@ -391,13 +598,13 @@ def render_post_card(post):
 
     st.markdown(f"""
     <div class="post-card">
-        <div style="display:flex; align-items:center; gap:14px;">
+        <div class="post-header">
             {avatar(name)}
-            <b style="font-size:18px;">{name}</b>
+            <p class="post-author">{name}</p>
         </div>
-        <p style="margin-top:12px; font-size:16px;">{content}</p>
-        <div style="display:flex; gap:20px; margin-top:12px;">
-            <span>{likes}</span>
+        <p class="post-content">{content}</p>
+        <div class="post-stats">
+            <span class="like-badge">❤️ {likes}</span>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -407,10 +614,10 @@ def render_post_card(post):
 # LOGIN / REGISTER (BACKEND)
 # =========================
 def login_page():
-    st.markdown("""
+    st.markdown(f"""
     <div class="hero">
-        <div class="hero-title">🌐 LinkUpDS</div>
-        <p style="font-size:20px; color:#334155;">Le réseau social qui comprend tes connexions</p>
+        {brand_logo_html()}
+        <p class="hero-subtitle">Le réseau social qui comprend tes connexions</p>
     </div>
     """, unsafe_allow_html=True)
 
@@ -452,7 +659,7 @@ def login_page():
             email = st.text_input("Email")
             pwd = st.text_input("Mot de passe", type="password")
 
-            if st.form_submit_button("Créer mon compte", use_container_width=True):
+            if st.form_submit_button("✨ Créer mon compte", use_container_width=True):
                 res = api_post("/auth/register", {
                     "name": name,
                     "email": email,
@@ -491,8 +698,8 @@ def login_page():
 def home_page():
     st.markdown(f"""
     <div class="hero">
-        <div class="hero-title">Bienvenue, {st.session_state.user_name}</div>
-        <p>Explore, partage, connecte-toi intelligemment.</p>
+        <p class="page-title" style="margin-bottom:8px;">👋 Bienvenue, {st.session_state.user_name}</p>
+        <p class="hero-subtitle">Explore, partage, connecte-toi intelligemment.</p>
     </div>
     """, unsafe_allow_html=True)
 
@@ -516,7 +723,7 @@ def home_page():
 # FEED INTELLIGENT (BACKEND)
 # =========================
 def feed_page():
-    st.markdown("<h1 style='text-align:center;'>Fil d'actualité</h1>", unsafe_allow_html=True)
+    st.markdown('<p class="page-title">Fil d\'actualité</p>', unsafe_allow_html=True)
 
     all_posts, error = load_feed_posts()
     if error:
@@ -537,7 +744,7 @@ def feed_page():
         author_id = author.get("userId")
         post_id = post.get("postId")
 
-        col1, col2 = st.columns([0.9, 0.1])
+        col1, col2 = st.columns([0.84, 0.16])
 
         with col1:
             render_post_card(post)
@@ -545,7 +752,7 @@ def feed_page():
         with col2:
             if author_id and author_id != st.session_state.user_id:
                 if author_id in following_ids:
-                    if st.button("Ne plus suivre", key=f"unfollow_{post_id}"):
+                    if st.button("👤−", key=f"unfollow_{post_id}", help="Ne plus suivre", use_container_width=True):
                         res = api_delete(f"/follows/{author_id}")
                         if res["ok"]:
                             st.session_state.following_ids.discard(author_id)
@@ -553,7 +760,7 @@ def feed_page():
                         else:
                             st.error(_api_error_message(res, "Erreur lors du désabonnement."))
                 else:
-                    if st.button("Suivre", key=f"follow_{post_id}"):
+                    if st.button("👤+", key=f"follow_{post_id}", help="Suivre", use_container_width=True):
                         res = api_post(f"/follows/{author_id}")
                         if res["ok"]:
                             st.session_state.following_ids.add(author_id)
@@ -561,7 +768,7 @@ def feed_page():
                         else:
                             st.error(_api_error_message(res, "Erreur lors du suivi."))
 
-            if st.button("Like", key=f"like_{post_id}"):
+            if st.button("❤️", key=f"like_{post_id}", help="Like", use_container_width=True):
                 res = api_post(f"/likes/{post_id}")
                 if res["ok"]:
                     st.rerun()
@@ -573,7 +780,7 @@ def feed_page():
 # CREER POST (BACKEND)
 # =========================
 def create_post_page():
-    st.markdown("<h1 style='text-align:center;'>Nouvelle pensée</h1>", unsafe_allow_html=True)
+    st.markdown('<p class="page-title">Nouvelle pensée</p>', unsafe_allow_html=True)
 
     with st.form("post"):
         content = st.text_area("Exprime‑toi", height=160, placeholder="Quoi de neuf ?")
@@ -614,19 +821,19 @@ def profile_page():
         st.warning(msg)
 
     st.markdown(f"""
-    <div style="text-align:center;">
-        <div style="display:flex; justify-content:center;">{avatar(user.get('name', '?'))}</div>
-        <h2>{user.get('name')}</h2>
-        <p style="color:#2e90ff;">@{user.get('username') or user.get('userId', '')[:12]}</p>
-        <p>{user.get('email')}</p>
-        <div style="display:flex; gap:30px; justify-content:center; margin-top:20px;">
-            <div><b>{len(followers)}</b><br>abonnés</div>
-            <div><b>{len(following)}</b><br>abonnements</div>
+    <div class="profile-card">
+        <div style="display:flex; justify-content:center;">{avatar(user.get('name', '?'), large=True)}</div>
+        <p class="profile-name">{user.get('name')}</p>
+        <p class="profile-username">@{user.get('username') or user.get('userId', '')[:12]}</p>
+        <p class="profile-email">{user.get('email')}</p>
+        <div class="profile-stats">
+            <div class="stat-item"><b>{len(followers)}</b><span>abonnés</span></div>
+            <div class="stat-item"><b>{len(following)}</b><span>abonnements</span></div>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
-    st.markdown("<h2 style='text-align:center; margin-top:40px;'>Mes publications</h2>", unsafe_allow_html=True)
+    st.markdown('<p class="section-title">Mes publications</p>', unsafe_allow_html=True)
 
     my_posts, posts_error = load_user_posts(st.session_state.user_id)
     if posts_error:
@@ -641,13 +848,13 @@ def profile_page():
             continue
 
         post_id = post.get("postId")
-        col1, col2 = st.columns([0.9, 0.1])
+        col1, col2 = st.columns([0.84, 0.16])
 
         with col1:
             render_post_card(post)
 
         with col2:
-            if post_id and st.button("Supprimer", key=f"delete_post_{post_id}"):
+            if post_id and st.button("🗑️", key=f"delete_post_{post_id}", help="Supprimer", use_container_width=True):
                 res = api_delete(f"/posts/{post_id}")
                 if res["ok"]:
                     if post_id in st.session_state.my_post_ids:
@@ -664,7 +871,11 @@ def profile_page():
 # =========================
 def suggestions_section():
     st.markdown("### 👥 Suggestions")
-    st.caption("Suggestions indisponibles pour le moment.")
+    st.markdown("""
+    <div class="suggestion-box">
+        <p>Suggestions d'abonnements bientôt disponibles</p>
+    </div>
+    """, unsafe_allow_html=True)
 
 
 # =========================
@@ -672,8 +883,9 @@ def suggestions_section():
 # =========================
 if st.session_state.user_id:
     with st.sidebar:
-        st.markdown(f"### {st.session_state.user_name}")
-        st.markdown("---")
+        st.markdown(f'<p class="sidebar-brand">LinkUpDS</p>', unsafe_allow_html=True)
+        st.markdown(f'<p class="sidebar-user">✨ {st.session_state.user_name}</p>', unsafe_allow_html=True)
+        st.markdown('<div class="sidebar-divider"></div>', unsafe_allow_html=True)
 
         if st.button("Accueil", use_container_width=True):
             st.session_state.page = "home"
@@ -688,9 +900,9 @@ if st.session_state.user_id:
             st.session_state.page = "profile"
             st.rerun()
 
-        st.markdown("---")
+        st.markdown('<div class="sidebar-divider"></div>', unsafe_allow_html=True)
         suggestions_section()
-        st.markdown("---")
+        st.markdown('<div class="sidebar-divider"></div>', unsafe_allow_html=True)
 
         if st.button("Déconnexion", use_container_width=True):
             st.session_state.access_token = None
