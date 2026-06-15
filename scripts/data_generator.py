@@ -1,128 +1,141 @@
-"""
-Générateur de données fictives pour LinkUpDS
-Utilise Faker pour créer des utilisateurs, posts, likes et abonnements
-Exécution : python scripts/data_generator.py
-"""
-
 import random
-import sys
-import os
-from datetime import datetime, timedelta
-
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
+import requests
 from faker import Faker
-from src.db_utils import LinkUpDB
 
-fake = Faker("fr_FR")  # Données françaises
+fake = Faker("fr_FR")
 
-# Configuration
-NB_USERS = 50          # À monter à 500 après test
+BASE_URL = "http://127.0.0.1:8000"
+
+NB_USERS = 30
 POSTS_PER_USER = 3
-LIKES_PROBABILITY = 0.1
-FOLLOW_PROBABILITY = 0.05
+FOLLOW_PROBABILITY = 0.2
+LIKE_PROBABILITY = 0.3
 
-def generate_users(db, n=NB_USERS):
-    print(f"👥 Création de {n} utilisateurs...")
-    users = []
-    for i in range(n):
-        name = fake.name()
-        email = fake.email()
-        password = "password123"  # mot de passe simple pour les tests
-        user_id = f"user_fake_{i}_{random.randint(1000,9999)}"
-        
-        try:
-            user = db.create_user(
-                user_id=user_id,
-                name=name,
-                email=email,
-                password=password,
-                bio=fake.sentence(nb_words=10),
-                city=fake.city()
-            )
-            users.append(user_id)
-            if (i+1) % 10 == 0:
-                print(f"   ✅ {i+1}/{n} utilisateurs créés")
-        except Exception as e:
-            print(f"   ⚠️ Erreur sur {name} : {e}")
-    print(f"✅ {len(users)} utilisateurs créés\n")
-    return users
 
-def generate_posts(db, users, posts_per_user=POSTS_PER_USER):
-    print(f"📝 Création de posts...")
-    total = 0
-    for user_id in users:
-        nb = random.randint(1, posts_per_user)
-        for _ in range(nb):
-            content = fake.paragraph(nb_sentences=random.randint(1, 4))
-            try:
-                db.create_post(user_id=user_id, content=content)
-                total += 1
-            except:
-                pass
-    print(f"✅ {total} posts créés\n")
+# =========================
+# HELPERS API
+# =========================
 
-def generate_follows(db, users, probability=FOLLOW_PROBABILITY):
-    print(f"🔗 Création d'abonnements...")
-    count = 0
-    for follower in users:
-        for followee in users:
-            if follower != followee and random.random() < probability:
-                try:
-                    db.follow(follower, followee)
-                    count += 1
-                except:
-                    pass
-    print(f"✅ {count} abonnements créés\n")
+def register_user(name, email, password):
+    payload = {
+        "name": name,
+        "email": email,
+        "password": password
+    }
+    r = requests.post(f"{BASE_URL}/auth/register", json=payload)
+    if r.status_code not in (200, 201):
+        print("Register error:", r.text)
+        return None
+    return r.json()
 
-def generate_likes(db, probability=LIKES_PROBABILITY):
-    print(f"❤️ Création de likes...")
-    
-    # Récupérer tous les posts
-    with db.driver.session() as session:
-        result = session.run("MATCH (p:Post) RETURN p.postId AS postId")
-        posts = [r["postId"] for r in result]
-    
-    # Récupérer tous les utilisateurs
-    with db.driver.session() as session:
-        result = session.run("MATCH (u:User) RETURN u.userId AS userId")
-        users = [r["userId"] for r in result]
-    
-    count = 0
-    for user_id in users:
-        for post_id in posts:
-            if random.random() < probability:
-                try:
-                    db.like_post(user_id, post_id)
-                    count += 1
-                except:
-                    pass
-    print(f"✅ {count} likes créés\n")
+
+def login(email, password):
+    payload = {"email": email, "password": password}
+    r = requests.post(f"{BASE_URL}/auth/login", json=payload)
+    if r.status_code != 200:
+        print("Login error:", r.text)
+        return None
+    return r.json()["access_token"]
+
+
+def create_post(token, content):
+    headers = {"Authorization": f"Bearer {token}"}
+    payload = {"content": content}
+    r = requests.post(f"{BASE_URL}/posts/", json=payload, headers=headers)
+    return r.json() if r.status_code in (200, 201) else None
+
+
+def follow(token, user_id):
+    headers = {"Authorization": f"Bearer {token}"}
+    r = requests.post(f"{BASE_URL}/follows/{user_id}", headers=headers)
+    return r.status_code == 200
+
+
+def like(token, post_id):
+    headers = {"Authorization": f"Bearer {token}"}
+    r = requests.post(f"{BASE_URL}/likes/{post_id}", headers=headers)
+    return r.status_code == 200
+
+
+def get_feed(user_id):
+    r = requests.get(f"{BASE_URL}/feed/{user_id}")
+    return r.json() if r.status_code == 200 else []
+
+
+# =========================
+# GENERATION
+# =========================
 
 def main():
-    print("=" * 50)
-    print("🌐 GÉNÉRATION DE DONNÉES POUR LINKUPDS")
-    print("=" * 50)
-    
-    db = LinkUpDB()
-    
-    # 1. Utilisateurs
-    users = generate_users(db)
-    
-    # 2. Posts
-    generate_posts(db, users)
-    
-    # 3. Abonnements
-    generate_follows(db, users)
-    
-    # 4. Likes
-    generate_likes(db)
-    
-    print("=" * 50)
-    print("🎉 GÉNÉRATION TERMINÉE")
-    print("=" * 50)
-    
-    db.close()
+    print("Génération via API LinkUpDS\n")
+
+    users = []
+
+    # =========================
+    # 1. USERS
+    # =========================
+    for i in range(NB_USERS):
+        name = fake.name()
+        email = fake.unique.email().strip().lower()
+        password = "password123"
+
+        user = register_user(name, email, password)
+        if not user:
+            continue
+
+        token = login(email, password)
+        if not token:
+            continue
+
+        users.append({
+            "id": user["userId"] if "userId" in user else user.get("id"),
+            "email": email,
+            "token": token
+        })
+
+        print(f"User créé: {email}")
+
+    print(f"\n{len(users)} users créés\n")
+
+    # =========================
+    # 2. POSTS
+    # =========================
+    posts = []
+
+    for u in users:
+        for _ in range(random.randint(1, POSTS_PER_USER)):
+            content = fake.sentence(nb_words=12)
+            post = create_post(u["token"], content)
+
+            if post:
+                posts.append({
+                    "postId": post.get("postId"),
+                    "author": u["id"]
+                })
+
+    print(f"{len(posts)} posts créés\n")
+
+    # =========================
+    # 3. FOLLOW RELATIONS
+    # =========================
+    for u in users:
+        for v in users:
+            if u["id"] != v["id"] and random.random() < FOLLOW_PROBABILITY:
+                follow(u["token"], v["id"])
+
+    print("Relations follow créées\n")
+
+    # =========================
+    # 4. LIKES
+    # =========================
+    for u in users:
+        for p in posts:
+            if random.random() < LIKE_PROBABILITY:
+                like(u["token"], p["postId"])
+
+    print("Likes créés\n")
+    print("Terminé ✔")
+
 
 if __name__ == "__main__":
     main()
