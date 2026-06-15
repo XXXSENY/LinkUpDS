@@ -20,6 +20,8 @@ API_USER_FOLLOWERS = "/users/{user_id}/followers"
 API_USER_FOLLOWING = "/users/{user_id}/following"
 API_USER_POSTS = "/users/{user_id}/posts"
 
+CSS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "style.css")
+
 
 def _auth_headers():
     token = st.session_state.get("access_token")
@@ -186,6 +188,18 @@ def _load_user_posts_fallback():
 
 
 # =========================
+# STYLES
+# =========================
+def inject_styles():
+    """Charge le CSS externe (assets/style.css)."""
+    try:
+        with open(CSS_FILE, encoding="utf-8") as css_file:
+            st.markdown(f"<style>{css_file.read()}</style>", unsafe_allow_html=True)
+    except FileNotFoundError:
+        st.warning("Fichier CSS introuvable : assets/style.css")
+
+
+# =========================
 # CONFIG PAGE
 # =========================
 st.set_page_config(
@@ -215,329 +229,9 @@ if "my_post_ids" not in st.session_state:
     st.session_state.my_post_ids = []
 
 # =========================
-# CSS PREMIUM
+# STYLES (injection)
 # =========================
-st.markdown("""
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
-* { font-family: 'Inter', sans-serif; box-sizing: border-box; }
-
-.stApp {
-    background: radial-gradient(circle at 12% 18%, #e8f2ff 0%, #f5f9ff 42%, #eef2ff 100%);
-    color: #0f172a;
-}
-.stApp, .stApp p, .stApp span, .stApp label, .stApp div { color: #0f172a; }
-
-.block-container {
-    max-width: 920px;
-    padding-top: 2rem;
-    animation: fadeIn 0.7s cubic-bezier(0.2, 0.9, 0.4, 1);
-}
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(18px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-
-/* ——— Branding LinkUpDS ——— */
-.brand-logo {
-    display: inline-flex;
-    align-items: center;
-    gap: 14px;
-    justify-content: center;
-}
-.brand-icon {
-    font-size: 52px;
-    filter: drop-shadow(0 0 18px rgba(46, 144, 255, 0.45));
-    animation: pulseIcon 3s ease-in-out infinite;
-}
-@keyframes pulseIcon {
-    0%, 100% { transform: scale(1); }
-    50% { transform: scale(1.06); }
-}
-.brand-text {
-    font-size: clamp(42px, 7vw, 68px);
-    font-weight: 800;
-    letter-spacing: -0.03em;
-    background: linear-gradient(120deg, #2563eb 0%, #0891b2 45%, #7c3aed 100%);
-    background-size: 200% auto;
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    animation: brandShine 4s linear infinite;
-    filter: drop-shadow(0 2px 24px rgba(37, 99, 235, 0.25));
-}
-@keyframes brandShine {
-    0% { background-position: 0% center; }
-    100% { background-position: 200% center; }
-}
-.page-title {
-    text-align: center;
-    font-size: 2rem;
-    font-weight: 700;
-    margin: 0 0 1.5rem;
-    background: linear-gradient(90deg, #1d4ed8, #6d28d9);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-}
-
-/* ——— Hero & cards ——— */
-.hero {
-    text-align: center;
-    padding: 48px 28px;
-    background: linear-gradient(145deg, rgba(255,255,255,0.95), rgba(224,242,254,0.88));
-    border: 1px solid rgba(59, 130, 246, 0.2);
-    border-radius: 32px;
-    margin-bottom: 32px;
-    box-shadow: 0 20px 50px rgba(37, 99, 235, 0.1);
-}
-.hero-subtitle {
-    font-size: 1.15rem;
-    color: #475569 !important;
-    margin-top: 12px;
-}
-
-.post-card {
-    background: #ffffff;
-    border: 1px solid rgba(148, 163, 184, 0.25);
-    border-radius: 20px;
-    padding: 20px 22px;
-    margin-bottom: 8px;
-    box-shadow: 0 8px 28px rgba(15, 23, 42, 0.06);
-    transition: border-color 0.2s ease, box-shadow 0.2s ease;
-}
-.post-card:hover {
-    border-color: rgba(59, 130, 246, 0.45);
-    box-shadow: 0 12px 32px rgba(37, 99, 235, 0.1);
-}
-.post-header {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-}
-.post-author {
-    font-size: 1.05rem;
-    font-weight: 700;
-    color: #0f172a;
-    margin: 0;
-}
-.post-content {
-    margin: 14px 0 0 62px;
-    font-size: 1rem;
-    line-height: 1.6;
-    color: #334155;
-}
-.post-stats {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin: 14px 0 0 62px;
-    font-size: 0.95rem;
-    color: #64748b;
-}
-.post-stats .like-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    background: rgba(239, 68, 68, 0.08);
-    color: #dc2626;
-    padding: 4px 12px;
-    border-radius: 999px;
-    font-weight: 600;
-}
-
-/* ——— Avatar ——— */
-.avatar {
-    width: 48px;
-    height: 48px;
-    min-width: 48px;
-    background: linear-gradient(135deg, #3b82f6, #8b5cf6);
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 700;
-    font-size: 18px;
-    color: white;
-    box-shadow: 0 4px 14px rgba(59, 130, 246, 0.35);
-}
-.avatar-lg {
-    width: 88px;
-    height: 88px;
-    min-width: 88px;
-    font-size: 32px;
-    margin: 0 auto;
-    box-shadow: 0 8px 24px rgba(99, 102, 241, 0.35);
-}
-
-/* ——— Profil dashboard ——— */
-.profile-card {
-    text-align: center;
-    background: linear-gradient(160deg, #ffffff 0%, #f0f7ff 100%);
-    border: 1px solid rgba(59, 130, 246, 0.18);
-    border-radius: 28px;
-    padding: 36px 28px 28px;
-    margin-bottom: 28px;
-    box-shadow: 0 16px 40px rgba(37, 99, 235, 0.08);
-}
-.profile-name {
-    font-size: 1.75rem;
-    font-weight: 800;
-    margin: 16px 0 4px;
-    color: #0f172a;
-}
-.profile-username {
-    color: #2563eb;
-    font-weight: 600;
-    font-size: 1rem;
-    margin: 0 0 6px;
-}
-.profile-email {
-    color: #64748b !important;
-    font-size: 0.95rem;
-    margin: 0 0 24px;
-}
-.profile-stats {
-    display: flex;
-    justify-content: center;
-    gap: 48px;
-    padding-top: 8px;
-    border-top: 1px solid rgba(148, 163, 184, 0.2);
-}
-.stat-item b {
-    display: block;
-    font-size: 1.5rem;
-    font-weight: 800;
-    color: #1e40af;
-}
-.stat-item span {
-    font-size: 0.85rem;
-    color: #64748b !important;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-}
-.section-title {
-    text-align: center;
-    font-size: 1.35rem;
-    font-weight: 700;
-    margin: 32px 0 20px;
-    color: #1e293b;
-}
-
-/* ——— Boutons uniformes ——— */
-.stButton > button {
-    background: linear-gradient(135deg, #3b82f6, #2563eb);
-    color: white !important;
-    border: none;
-    border-radius: 14px;
-    min-height: 48px;
-    padding: 10px 18px;
-    font-weight: 600;
-    font-size: 0.95rem;
-    transition: transform 0.15s ease, box-shadow 0.15s ease;
-    width: 100%;
-    box-shadow: 0 4px 14px rgba(37, 99, 235, 0.22);
-}
-.stButton > button:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 6px 20px rgba(37, 99, 235, 0.32);
-    background: linear-gradient(135deg, #60a5fa, #3b82f6);
-}
-.stButton > button:active {
-    transform: translateY(0);
-}
-.stButton > button p,
-.stButton > button span,
-.stButton > button div {
-    color: white !important;
-}
-
-/* Boutons icône (colonnes actions) */
-div[data-testid="column"]:has(.stButton) .stButton > button {
-    min-height: 44px;
-    font-size: 1.35rem;
-    padding: 8px 10px;
-    border-radius: 12px;
-}
-.stButton > button[kind="secondary"] {
-    background: #f1f5f9;
-    color: #334155 !important;
-    box-shadow: none;
-    border: 1px solid #e2e8f0;
-}
-
-/* ——— Sidebar ——— */
-section[data-testid="stSidebar"] {
-    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
-    border-right: 1px solid rgba(59, 130, 246, 0.15);
-}
-section[data-testid="stSidebar"] * { color: #0f172a; }
-.sidebar-brand {
-    font-size: 1.1rem;
-    font-weight: 800;
-    background: linear-gradient(90deg, #2563eb, #7c3aed);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    margin-bottom: 4px;
-}
-.sidebar-user {
-    font-size: 0.9rem;
-    color: #64748b !important;
-    margin-bottom: 16px;
-}
-.sidebar-divider {
-    height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(59,130,246,0.25), transparent);
-    margin: 16px 0;
-}
-.suggestion-box {
-    background: rgba(239, 246, 255, 0.9);
-    border: 1px dashed rgba(59, 130, 246, 0.3);
-    border-radius: 16px;
-    padding: 14px;
-    text-align: center;
-}
-.suggestion-box p {
-    color: #64748b !important;
-    font-size: 0.85rem;
-    margin: 0;
-}
-section[data-testid="stSidebar"] .stButton > button {
-    min-height: 42px;
-    font-size: 0.88rem;
-    border-radius: 12px;
-    margin-bottom: 4px;
-}
-section[data-testid="stSidebar"] .stButton:last-of-type > button {
-    background: linear-gradient(135deg, #64748b, #475569);
-    box-shadow: 0 4px 12px rgba(71, 85, 105, 0.2);
-}
-
-/* ——— Formulaires ——— */
-.stTextInput input, .stTextArea textarea {
-    background: #ffffff;
-    color: #0f172a;
-    border: 1px solid rgba(59, 130, 246, 0.22);
-    border-radius: 12px;
-}
-.stTextInput input:focus, .stTextArea textarea:focus {
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
-}
-div[data-baseweb="tab-list"] button p {
-    color: #0f172a;
-    font-weight: 700;
-}
-
-/* ——— Action row feed/profil ——— */
-.action-stack {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    align-items: stretch;
-    justify-content: flex-start;
-    padding-top: 8px;
-}
-</style>
-""", unsafe_allow_html=True)
+inject_styles()
 
 
 def show_flash_message():
@@ -614,12 +308,15 @@ def render_post_card(post):
 # LOGIN / REGISTER (BACKEND)
 # =========================
 def login_page():
-    st.markdown(f"""
-    <div class="hero">
-        {brand_logo_html()}
-        <p class="hero-subtitle">Le réseau social qui comprend tes connexions</p>
+    st.markdown("""
+<div class="hero">
+    <div class="brand-logo">
+        <span class="brand-icon">🌐</span>
+        <span class="brand-text">LinkUpDS</span>
     </div>
-    """, unsafe_allow_html=True)
+    <p class="hero-subtitle">Le réseau social qui comprend tes connexions</p>
+</div>
+""", unsafe_allow_html=True)
 
     tab1, tab2 = st.tabs(["Se connecter", "S'inscrire"])
 
