@@ -46,3 +46,17 @@ if __name__ == "__main__":
     extractor = GraphExtractor()
     G = extractor.load_graph()
     extractor.check_quality()
+
+
+
+if __name__ == "__main__":
+
+
+    extractor = GraphExtractor()
+    G = extractor.load_graph()
+    extractor.check_quality()
+
+    print("\n=== VERIFICATION NETWORKX ===")
+    print("Type :", type(G))
+    print("Noeuds :", G.number_of_nodes())
+    print("Relations :", G.number_of_edges())
