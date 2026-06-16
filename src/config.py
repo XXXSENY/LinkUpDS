@@ -21,10 +21,14 @@ NEO4J_USER = os.getenv("NEO4J_USER")
 NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD")
 NEO4J_DATABASE = os.getenv("NEO4J_DATABASE")
 
+# MongoDB Configuration (stockage documentaire users / posts)
+MONGODB_URI = os.getenv("MONGODB_URI")
+MONGODB_DATABASE = os.getenv("MONGODB_DATABASE", "linkupdsdb")
+
 # API Configuration
 API_TITLE = "LinkUpDS API"
 API_VERSION = "1.0.0"
-API_DESCRIPTION = "Backend du réseau social LinkUpDS basé sur Neo4j"
+API_DESCRIPTION = "Backend du reseau social LinkUpDS (Neo4j + MongoDB)"
 
 # Pagination
 DEFAULT_LIMIT = 20

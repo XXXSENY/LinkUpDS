@@ -1,6 +1,7 @@
 """
-Fonctions d'accès aux données Neo4j pour LinkUpDS.
-DAO central utilisé par Streamlit, FastAPI et tests.
+Fonctions d'acces aux donnees pour LinkUpDS.
+Neo4j : graphe social (relations, feed, recommandations).
+MongoDB : stockage documentaire users et posts.
 """
 
 from __future__ import annotations
@@ -11,8 +12,16 @@ from uuid import uuid4
 
 from neo4j import GraphDatabase
 from neo4j.exceptions import AuthError, ServiceUnavailable
+from pymongo import DESCENDING, MongoClient
 
-from src.config import NEO4J_DATABASE, NEO4J_PASSWORD, NEO4J_URI, NEO4J_USER
+from src.config import (
+    MONGODB_DATABASE,
+    MONGODB_URI,
+    NEO4J_DATABASE,
+    NEO4J_PASSWORD,
+    NEO4J_URI,
+    NEO4J_USER,
+)
 
 DEFAULT_URI = NEO4J_URI
 DEFAULT_USER = NEO4J_USER
@@ -21,7 +30,7 @@ DEFAULT_DATABASE = NEO4J_DATABASE
 
 
 class LinkUpDB:
-    """DAO Neo4j pour LinkUpDS."""
+    """DAO hybride Neo4j + MongoDB pour LinkUpDS."""
 
     def __init__(
         self,
@@ -29,21 +38,36 @@ class LinkUpDB:
         user: str = DEFAULT_USER,
         password: str = DEFAULT_PASSWORD,
         database: Optional[str] = DEFAULT_DATABASE,
+        mongo_uri: Optional[str] = None,
+        mongo_database: Optional[str] = None,
     ) -> None:
         if not uri:
             raise ValueError(
-                "NEO4J_URI non défini. Créez un fichier .env à la racine du projet."
+                "NEO4J_URI non defini. Creez un fichier .env a la racine du projet."
             )
         if not user or not password:
             raise ValueError("NEO4J_USER et NEO4J_PASSWORD requis.")
+
+        mongo_uri = mongo_uri or MONGODB_URI
+        mongo_database = mongo_database or MONGODB_DATABASE
+        if not mongo_uri:
+            raise ValueError(
+                "MONGODB_URI non defini. Ajoutez-le dans le fichier .env."
+            )
 
         self.uri = uri
         self.user = user
         self.database = database
         self.driver = GraphDatabase.driver(uri, auth=(user, password))
 
+        self.mongo_client = MongoClient(mongo_uri, serverSelectionTimeoutMS=5000)
+        self.mongo_db = self.mongo_client[mongo_database]
+        self.users_collection = self.mongo_db["users"]
+        self.posts_collection = self.mongo_db["posts"]
+
     def close(self) -> None:
         self.driver.close()
+        self.mongo_client.close()
 
     def verify_connection(self) -> bool:
         try:
@@ -126,7 +150,26 @@ class LinkUpDB:
             interests=interests or [],
             now=now,
         )
-        return rows[0]["user"]
+        user = rows[0]["user"]
+
+        mongo_user = {
+            "userId": user_id,
+            "name": name,
+            "email": email,
+            "username": username,
+            "password": password,
+            "bio": bio,
+            "city": city,
+            "interests": interests or [],
+            "createdAt": user.get("createdAt", now),
+            "updatedAt": user.get("updatedAt", now),
+        }
+        self.users_collection.update_one(
+            {"userId": user_id},
+            {"$set": mongo_user},
+            upsert=True,
+        )
+        return user
 
     def get_user(self, user_id: str):
         query = """
@@ -142,32 +185,15 @@ class LinkUpDB:
         return rows[0]["user"] if rows else None
 
     def get_user_by_email(self, email: str):
-        """Récupérer un utilisateur par email (SANS password pour sécurité)."""
-        query = """
-        MATCH (u:User {email: $email})
-        RETURN u {
-            .userId,.name,.email,.username,
-            .bio,.city,.interests,
-            createdAt: toString(u.createdAt),
-            updatedAt: toString(u.updatedAt)
-        } AS user
-        """
-        rows = self._execute_read(query, email=email)
-        return rows[0]["user"] if rows else None
+        """Recuperer un utilisateur par email depuis MongoDB (sans password)."""
+        return self.users_collection.find_one(
+            {"email": email},
+            {"_id": 0, "password": 0},
+        )
 
     def get_user_auth_by_email(self, email: str):
-        """Récupérer un utilisateur avec password UNIQUEMENT pour authentification."""
-        query = """
-        MATCH (u:User {email: $email})
-        RETURN u {
-            .userId,.name,.email,.username,
-            .bio,.city,.interests,.password,
-            createdAt: toString(u.createdAt),
-            updatedAt: toString(u.updatedAt)
-        } AS user
-        """
-        rows = self._execute_read(query, email=email)
-        return rows[0]["user"] if rows else None
+        """Recuperer un utilisateur avec password depuis MongoDB (login)."""
+        return self.users_collection.find_one({"email": email}, {"_id": 0})
 
     def get_all_users(self):
         """Récupère tous les utilisateurs (sans les mots de passe)"""
@@ -271,23 +297,33 @@ class LinkUpDB:
         )
         if not rows:
             raise ValueError("Utilisateur introuvable")
-        return rows[0]["post"]
+        post = rows[0]["post"]
+
+        mongo_post = {
+            "postId": post_id,
+            "authorId": user_id,
+            "content": content,
+            "topic": topic,
+            "sentiment": sentiment,
+            "sentimentScore": sentiment_score,
+            "createdAt": post.get("createdAt", now),
+            "updatedAt": post.get("updatedAt", now),
+        }
+        self.posts_collection.update_one(
+            {"postId": post_id},
+            {"$set": mongo_post},
+            upsert=True,
+        )
+        return post
 
     def get_post(self, post_id: str):
-        query = """
-        MATCH (u:User)-[:POSTED]->(p:Post {postId: $post_id})
-        OPTIONAL MATCH (p)<-[:LIKES]-(:User)
-        WITH p, u, count(*) AS likeCount
-        RETURN p {
-            .postId,.content,.topic,.sentiment,.sentimentScore,
-            createdAt: toString(p.createdAt),
-            updatedAt: toString(p.updatedAt),
-            likeCount: likeCount,
-            author: u {.userId,.name,.username,.email}
-        } AS post
-        """
-        rows = self._execute_read(query, post_id=post_id)
-        return rows[0]["post"] if rows else None
+        mongo_post = self.posts_collection.find_one(
+            {"postId": post_id},
+            {"_id": 0},
+        )
+        if not mongo_post:
+            return None
+        return self._enrich_post(mongo_post)
 
     def delete_post(self, post_id: str) -> bool:
         query = """
@@ -299,22 +335,12 @@ class LinkUpDB:
         return bool(rows)
 
     def get_posts_by_user(self, user_id: str, limit: int = 20):
-        query = """
-        MATCH (u:User {userId: $user_id})-[:POSTED]->(p:Post)
-        OPTIONAL MATCH (p)<-[:LIKES]-(:User)
-        WITH p, u, count(*) AS likeCount
-        ORDER BY p.createdAt DESC
-        LIMIT $limit
-        RETURN p {
-            .postId,.content,.topic,.sentiment,.sentimentScore,
-            createdAt: toString(p.createdAt),
-            updatedAt: toString(p.updatedAt),
-            likeCount: likeCount,
-            author: u {.userId,.name,.username,.email}
-        } AS post
-        """
-        rows = self._execute_read(query, user_id=user_id, limit=limit)
-        return [row["post"] for row in rows]
+        cursor = (
+            self.posts_collection.find({"authorId": user_id}, {"_id": 0})
+            .sort("createdAt", DESCENDING)
+            .limit(limit)
+        )
+        return [self._enrich_post(doc) for doc in cursor]
 
     def get_feed(self, user_id: str, limit: int = 20, offset: int = 0):
         query = """
@@ -423,6 +449,36 @@ class LinkUpDB:
     # =========================
     # UTILS
     # =========================
+    def _enrich_post(self, mongo_post: Dict[str, Any]) -> Dict[str, Any]:
+        """Enrichit un document MongoDB avec auteur (MongoDB) et likes (Neo4j)."""
+        author_id = mongo_post.get("authorId")
+        author = None
+        if author_id:
+            author = self.users_collection.find_one(
+                {"userId": author_id},
+                {
+                    "_id": 0,
+                    "password": 0,
+                    "userId": 1,
+                    "name": 1,
+                    "username": 1,
+                    "email": 1,
+                },
+            )
+
+        post_id = mongo_post.get("postId")
+        return {
+            "postId": post_id,
+            "content": mongo_post.get("content", ""),
+            "topic": mongo_post.get("topic", "general"),
+            "sentiment": mongo_post.get("sentiment", "neutral"),
+            "sentimentScore": mongo_post.get("sentimentScore", 0.0),
+            "createdAt": mongo_post.get("createdAt"),
+            "updatedAt": mongo_post.get("updatedAt"),
+            "likeCount": self.get_likes_count(post_id) if post_id else 0,
+            "author": author,
+        }
+
     def _session(self):
         return (
             self.driver.session(database=self.database)
