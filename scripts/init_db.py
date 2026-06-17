@@ -247,9 +247,7 @@ class Neo4jInitializer:
     def verify_setup(self):
         logger.info("Verification Neo4j...")
         checks = {
-            "contraintes": (
-                "CALL db.constraints() YIELD name RETURN count(*) AS count"
-            ),
+            "contraintes": "SHOW CONSTRAINTS YIELD name RETURN count(*) AS count",
             "indexes": "SHOW INDEXES YIELD name RETURN count(*) AS count",
             "noeuds": "MATCH (n) RETURN count(n) AS count",
         }
