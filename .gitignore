@@ -1,7 +1,47 @@
-venv/
-__pycache__/
-*.pyc
-.DS_Store
+# Environnements et secrets
 .env
+.env.*
+!.env.example
+.venv/
+venv/
+env/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+build/
+dist/
+*.egg-info/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Streamlit et processus locaux
+.streamlit/secrets.toml
+*.pid
+*.log
+
+# Artefacts ponctuels générés pendant l'analyse
+reports/team2_global_metrics/
+scripts/generate_global_metrics_report.py
+
+# Données locales
 *.db
+*.sqlite
+*.sqlite3
 neo4j_data/
+
+# IDE
+.idea/
+.vscode/
+
+# Système d'exploitation
+.DS_Store
+Thumbs.db
+Desktop.ini

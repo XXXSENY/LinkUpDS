@@ -201,6 +201,54 @@
     color: #1e293b;
 }
 
+/* ——— Dashboard Graph Mining ——— */
+.dashboard-hero {
+    padding: 8px 0 16px;
+}
+.dashboard-kicker {
+    display: inline-block;
+    color: #2563eb !important;
+    font-size: 0.74rem;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    margin-bottom: 8px;
+}
+.dashboard-hero h1 {
+    color: #10223e;
+    font-size: clamp(2.15rem, 5vw, 3.7rem);
+    line-height: 1.02;
+    letter-spacing: -0.045em;
+    margin: 0 0 12px;
+}
+.dashboard-hero p {
+    color: #64748b !important;
+    font-size: 1.05rem;
+    max-width: 680px;
+    margin: 0;
+}
+div[data-testid="stMetric"] {
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid rgba(148, 163, 184, 0.26);
+    border-radius: 16px;
+    padding: 16px 18px;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.055);
+}
+div[data-testid="stMetricLabel"] p {
+    color: #64748b !important;
+    font-weight: 600;
+}
+div[data-testid="stMetricValue"] {
+    color: #10223e;
+    font-weight: 800;
+}
+div[data-testid="stPlotlyChart"] {
+    background: rgba(255, 255, 255, 0.92);
+    border: 1px solid rgba(148, 163, 184, 0.24);
+    border-radius: 18px;
+    padding: 6px;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
+}
+
 /* ——— Boutons uniformes ——— */
 .stButton > button {
     background: linear-gradient(135deg, #3b82f6, #2563eb);
@@ -241,6 +289,11 @@ div[data-testid="column"]:has(.stButton) .stButton > button {
     color: #334155 !important;
     box-shadow: none;
     border: 1px solid #e2e8f0;
+}
+.stButton > button[kind="secondary"] p,
+.stButton > button[kind="secondary"] span,
+.stButton > button[kind="secondary"] div {
+    color: #334155 !important;
 }
 
 /* ——— Sidebar ——— */
