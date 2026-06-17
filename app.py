@@ -7,6 +7,10 @@ import streamlit as st
 import sys
 import os
 import requests
+import pandas as pd
+import plotly.express as px
+
+from src.team2.dashboard_data import load_dashboard_snapshot
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
@@ -284,6 +288,254 @@ def load_feed_posts(limit=100):
     return feed_res["data"], None
 
 
+@st.cache_data(ttl=60, show_spinner=False)
+def load_network_dashboard_snapshot():
+    """Instantané Neo4j mis en cache pendant une minute."""
+    return load_dashboard_snapshot()
+
+
+def _style_dashboard_figure(figure, height=410):
+    figure.update_layout(
+        template="plotly_white",
+        height=height,
+        margin=dict(l=20, r=20, t=65, b=30),
+        font=dict(family="Inter, sans-serif", color="#172033"),
+        title_font=dict(size=18),
+        legend_title_text="",
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="#FFFFFF",
+        hoverlabel=dict(bgcolor="#172033", font_color="#FFFFFF"),
+    )
+    figure.update_xaxes(gridcolor="#E2E8F0", zerolinecolor="#94A3B8")
+    figure.update_yaxes(gridcolor="#E2E8F0", zerolinecolor="#94A3B8")
+    return figure
+
+
+def network_dashboard_page():
+    """Dashboard Streamlit des indicateurs topologiques globaux."""
+    top_left, top_right = st.columns([0.78, 0.22])
+    with top_left:
+        st.markdown(
+            """
+            <div class="dashboard-hero">
+                <span class="dashboard-kicker">ÉQUIPE 2 · GRAPH MINING</span>
+                <h1>Structure globale du réseau</h1>
+                <p>Une lecture vivante de la densité, de la distance et de la connexité du graphe FOLLOWS.</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with top_right:
+        if st.button("← Retour", key="dashboard_back", width="stretch"):
+            st.session_state.page = "home"
+            st.rerun()
+        if st.button("↻ Actualiser", key="dashboard_refresh", width="stretch"):
+            load_network_dashboard_snapshot.clear()
+            st.rerun()
+
+    try:
+        with st.spinner("Lecture du graphe Neo4j…"):
+            snapshot = load_network_dashboard_snapshot()
+    except Exception as exc:
+        st.error(
+            "Impossible de charger le graphe Neo4j. Vérifiez que la base est "
+            "démarrée et que les variables NEO4J_* sont configurées."
+        )
+        with st.expander("Détail technique"):
+            st.code(str(exc))
+        return
+
+    metrics = snapshot["metrics"]
+    degree_df = pd.DataFrame(snapshot["degrees"])
+    components_df = pd.DataFrame(snapshot["components"])
+
+    if metrics["node_count"] == 0:
+        st.warning(
+            "Le graphe Neo4j ne contient encore aucun utilisateur. "
+            "Générez les données, puis utilisez le bouton Actualiser."
+        )
+        return
+
+    st.caption(
+        f"Source : {snapshot['source']} · actualisé le "
+        f"{snapshot['generated_at'].replace('T', ' ').replace('+00:00', ' UTC')}"
+    )
+
+    row1 = st.columns(4)
+    row1[0].metric("Nœuds", f"{metrics['node_count']:,}".replace(",", " "))
+    row1[1].metric("Arêtes", f"{metrics['edge_count']:,}".replace(",", " "))
+    row1[2].metric("Densité", f"{metrics['density']:.1%}")
+    row1[3].metric("Degré moyen", f"{metrics['average_degree']:.2f}")
+
+    row2 = st.columns(4)
+    distance_value = metrics["average_distance"]
+    row2[0].metric(
+        "Distance moyenne",
+        "—" if distance_value is None else f"{distance_value:.2f}",
+        help=metrics["average_distance_scope"],
+    )
+    row2[1].metric("Composantes faibles", metrics["weak_component_count"])
+    row2[2].metric("Composantes fortes", metrics["strong_component_count"])
+    row2[3].metric("Nœuds isolés", metrics["isolated_node_count"])
+
+    core_size = metrics["largest_strong_component_size"]
+    core_share = metrics["largest_strong_component_fraction"]
+    st.info(
+        f"Le réseau s'organise autour d'un cœur fortement connexe de "
+        f"{core_size} utilisateurs ({core_share:.1%} du réseau). "
+        f"La distance moyenne de {distance_value:.2f} arcs montre que les "
+        "utilisateurs du cœur sont rapidement accessibles les uns depuis les autres."
+    )
+
+    st.markdown("### Distribution et équilibre des connexions")
+    chart_controls, _ = st.columns([0.38, 0.62])
+    degree_label = chart_controls.selectbox(
+        "Type de degré",
+        options=["Total", "Entrant", "Sortant"],
+        index=0,
+        help="Entrant = abonnés · Sortant = abonnements",
+    )
+    degree_column = {
+        "Total": "total_degree",
+        "Entrant": "in_degree",
+        "Sortant": "out_degree",
+    }[degree_label]
+
+    chart_left, chart_right = st.columns(2)
+    with chart_left:
+        histogram = px.histogram(
+            degree_df,
+            x=degree_column,
+            nbins=max(5, min(12, int(degree_df[degree_column].max()) + 1)),
+            title=f"Distribution du degré {degree_label.lower()}",
+            labels={degree_column: f"Degré {degree_label.lower()}", "count": "Utilisateurs"},
+            color_discrete_sequence=["#356DF3"],
+        )
+        histogram.update_traces(marker_line_color="#2148B8", marker_line_width=1)
+        histogram.update_layout(bargap=0.08, showlegend=False)
+        histogram.update_yaxes(title="Utilisateurs")
+        st.plotly_chart(
+            _style_dashboard_figure(histogram),
+            width="stretch",
+            config={"displayModeBar": False},
+            theme=None,
+        )
+
+    with chart_right:
+        scatter = px.scatter(
+            degree_df,
+            x="out_degree",
+            y="in_degree",
+            size="total_degree",
+            hover_name="user_id",
+            title="Abonnements vs abonnés",
+            labels={
+                "out_degree": "Degré sortant (abonnements)",
+                "in_degree": "Degré entrant (abonnés)",
+                "total_degree": "Degré total",
+            },
+            color_discrete_sequence=["#D6A531"],
+            size_max=25,
+        )
+        max_degree = max(
+            int(degree_df["in_degree"].max()),
+            int(degree_df["out_degree"].max()),
+        )
+        scatter.add_shape(
+            type="line",
+            x0=0,
+            y0=0,
+            x1=max_degree,
+            y1=max_degree,
+            line=dict(color="#475569", width=1, dash="dot"),
+        )
+        st.plotly_chart(
+            _style_dashboard_figure(scatter),
+            width="stretch",
+            config={"displayModeBar": False},
+            theme=None,
+        )
+
+    st.markdown("### Connexité du réseau")
+    components_df["component"] = (
+        "Composante " + components_df["component_rank"].astype(str)
+    )
+    component_chart = px.bar(
+        components_df,
+        x="component",
+        y="size",
+        color="component_type",
+        barmode="group",
+        text_auto=True,
+        title="Taille des composantes faibles et fortes",
+        labels={
+            "component": "",
+            "size": "Nombre de nœuds",
+            "component_type": "Connexité",
+        },
+        color_discrete_map={"Faible": "#356DF3", "Forte": "#D6A531"},
+    )
+    component_chart.update_traces(marker_line_color="#172033", marker_line_width=0.8)
+    st.plotly_chart(
+        _style_dashboard_figure(component_chart, height=390),
+        width="stretch",
+        config={"displayModeBar": False},
+        theme=None,
+    )
+
+    st.markdown("### Tableau des indicateurs")
+    metric_table = pd.DataFrame(
+        [
+            ["Nombre de nœuds", metrics["node_count"], "Utilisateurs :User"],
+            ["Nombre d'arêtes", metrics["edge_count"], "Relations FOLLOWS distinctes"],
+            ["Densité", f"{metrics['density']:.4f}", "m / [n(n − 1)]"],
+            ["Degré moyen total", f"{metrics['average_degree']:.3f}", "2m / n"],
+            ["Degré entrant moyen", f"{metrics['average_in_degree']:.3f}", "m / n"],
+            ["Degré sortant moyen", f"{metrics['average_out_degree']:.3f}", "m / n"],
+            ["Distance moyenne", f"{distance_value:.3f}", metrics["average_distance_scope"]],
+            ["Composantes faibles", metrics["weak_component_count"], "Orientation ignorée"],
+            ["Composantes fortes", metrics["strong_component_count"], "Accessibilité mutuelle"],
+        ],
+        columns=["Indicateur", "Valeur", "Définition / périmètre"],
+    )
+    metric_table["Valeur"] = metric_table["Valeur"].astype(str)
+    st.dataframe(metric_table, hide_index=True, width="stretch")
+
+    with st.expander("Qualité des données et détail par utilisateur"):
+        quality = snapshot["data_quality"]
+        q1, q2, q3, q4 = st.columns(4)
+        q1.metric("Boucles", quality["self_loop_count"])
+        q2.metric("Relations dupliquées", quality["duplicate_follow_relationship_count"])
+        q3.metric("IDs manquants", quality["missing_user_id_count"])
+        q4.metric("IDs dupliqués", quality["duplicate_user_id_group_count"])
+        st.dataframe(
+            degree_df.sort_values("total_degree", ascending=False),
+            hide_index=True,
+            width="stretch",
+            column_config={
+                "user_id": "Utilisateur",
+                "in_degree": "Entrant",
+                "out_degree": "Sortant",
+                "total_degree": "Total",
+            },
+        )
+
+    st.markdown("### Analyse")
+    st.markdown(
+        f"""
+        - **Connectivité élevée du cœur.** {core_size} utilisateurs forment une composante
+          fortement connexe : chacun peut atteindre tous les autres en respectant le sens
+          des abonnements.
+        - **Réseau modérément dense.** La densité de {metrics['density']:.1%} signifie
+          qu'environ une relation possible sur cinq existe déjà dans le jeu simulé.
+        - **Faible éloignement.** {distance_value:.2f} arcs suffisent en moyenne dans le
+          cœur, un terrain favorable à la diffusion rapide des contenus.
+        - **Point de vigilance.** {metrics['isolated_node_count']} utilisateur reste isolé
+          et devrait recevoir des recommandations d'abonnement spécifiques.
+        """
+    )
+
+
 def render_post_card(post):
     author = post.get("author") or {}
     name = author.get("name", "Membre")
@@ -317,6 +569,10 @@ def login_page():
     <p class="hero-subtitle">Le réseau social qui comprend tes connexions</p>
 </div>
 """, unsafe_allow_html=True)
+
+    if st.button("📊 Explorer l'analyse du réseau", key="public_dashboard", width="stretch"):
+        st.session_state.page = "network_dashboard"
+        st.rerun()
 
     tab1, tab2 = st.tabs(["Se connecter", "S'inscrire"])
 
@@ -400,7 +656,7 @@ def home_page():
     </div>
     """, unsafe_allow_html=True)
 
-    c1, c2, c3 = st.columns(3)
+    c1, c2, c3, c4 = st.columns(4)
 
     with c1:
         if st.button("Feed", use_container_width=True):
@@ -413,6 +669,10 @@ def home_page():
     with c3:
         if st.button("Profil", use_container_width=True):
             st.session_state.page = "profile"
+            st.rerun()
+    with c4:
+        if st.button("Analyse réseau", use_container_width=True):
+            st.session_state.page = "network_dashboard"
             st.rerun()
 
 
@@ -596,6 +856,9 @@ if st.session_state.user_id:
         if st.button("Profil", use_container_width=True):
             st.session_state.page = "profile"
             st.rerun()
+        if st.button("Analyse réseau", use_container_width=True):
+            st.session_state.page = "network_dashboard"
+            st.rerun()
 
         st.markdown('<div class="sidebar-divider"></div>', unsafe_allow_html=True)
         suggestions_section()
@@ -614,7 +877,9 @@ if st.session_state.user_id:
 # =========================
 # ROUTAGE PRINCIPAL
 # =========================
-if not st.session_state.user_id:
+if st.session_state.page == "network_dashboard":
+    network_dashboard_page()
+elif not st.session_state.user_id:
     login_page()
 else:
     if st.session_state.page == "home":

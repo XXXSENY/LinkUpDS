@@ -134,7 +134,7 @@ def main():
                 like(u["token"], p["postId"])
 
     print("Likes créés\n")
-    print("Terminé ✔")
+    print("Termine")
 
 
 if __name__ == "__main__":
