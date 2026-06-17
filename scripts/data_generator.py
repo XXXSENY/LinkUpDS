@@ -6,6 +6,13 @@ fake = Faker("fr_FR")
 
 BASE_URL = "http://127.0.0.1:8000"
 
+# Centres d'intérêt possibles (ajouté pour l'équipe NLP & Recommandation)
+INTERESTS_POOL = [
+    "sport", "musique", "cinema", "technologie", "voyage",
+    "cuisine", "lecture", "mode", "jeux_video", "politique",
+    "sante", "art", "nature", "finance", "education"
+]
+
 NB_USERS = 30
 POSTS_PER_USER = 3
 FOLLOW_PROBABILITY = 0.2
@@ -16,11 +23,12 @@ LIKE_PROBABILITY = 0.3
 # HELPERS API
 # =========================
 
-def register_user(name, email, password):
+def register_user(name, email, password, interests=None):
     payload = {
         "name": name,
         "email": email,
-        "password": password
+        "password": password,
+        "interests": interests or [],
     }
     r = requests.post(f"{BASE_URL}/auth/register", json=payload)
     if r.status_code not in (200, 201):
@@ -78,8 +86,9 @@ def main():
         name = fake.name()
         email = fake.unique.email().strip().lower()
         password = "password123"
+        interests = random.sample(INTERESTS_POOL, k=random.randint(2, 5))
 
-        user = register_user(name, email, password)
+        user = register_user(name, email, password, interests=interests)
         if not user:
             continue
 

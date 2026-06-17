@@ -42,6 +42,7 @@ def register(user: RegisterRequest):
             username=user.username,
             bio=user.bio,
             city=user.city,
+            interests=user.interests,
         )
         logger.info(f"Nouvel utilisateur créé : {new_user.get('userId')}")
         return new_user

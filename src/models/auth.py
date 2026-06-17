@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import List, Optional
 
 from pydantic import BaseModel, EmailStr
 
@@ -15,6 +15,7 @@ class RegisterRequest(BaseModel):
     username: Optional[str] = None
     bio: str = ""
     city: str = ""
+    interests: Optional[List[str]] = None
 
 
 class Token(BaseModel):
