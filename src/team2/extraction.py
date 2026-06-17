@@ -1,5 +1,6 @@
-from src.db_utils import LinkUpDB
 import networkx as nx
+
+from src.db_utils import LinkUpDB
 
 
 class GraphExtractor:
@@ -10,19 +11,35 @@ class GraphExtractor:
 
     # 1. CONNEXION + EXTRACTION
     def load_graph(self):
+        """Charge tous les utilisateurs et les relations FOLLOWS.
 
-        query = """
+        Les utilisateurs sont chargés séparément afin de conserver les nœuds
+        isolés, qui seraient sinon absents d'une extraction basée uniquement
+        sur les relations.
+        """
+        users_query = """
+        MATCH (u:User)
+        RETURN u.userId AS user_id
+        """
+        edges_query = """
         MATCH (a:User)-[:FOLLOWS]->(b:User)
-        RETURN a.userId AS src, b.userId AS dst
+        RETURN DISTINCT a.userId AS src, b.userId AS dst
         """
 
-        with self.db.driver.session() as session:
-            result = session.run(query)
-
-            for r in result:
-                self.G.add_edge(r["src"], r["dst"])
+        self.G.clear()
+        with self.db._session() as session:
+            self.G.add_nodes_from(
+                row["user_id"] for row in session.run(users_query)
+            )
+            self.G.add_edges_from(
+                (row["src"], row["dst"])
+                for row in session.run(edges_query)
+            )
 
         return self.G
+
+    def close(self):
+        self.db.close()
 
     # 2. VERIFICATION QUALITE
     def check_quality(self):
@@ -42,21 +59,14 @@ class GraphExtractor:
 
 
 if __name__ == "__main__":
-
     extractor = GraphExtractor()
-    G = extractor.load_graph()
-    extractor.check_quality()
+    try:
+        G = extractor.load_graph()
+        extractor.check_quality()
 
-
-
-if __name__ == "__main__":
-
-
-    extractor = GraphExtractor()
-    G = extractor.load_graph()
-    extractor.check_quality()
-
-    print("\n=== VERIFICATION NETWORKX ===")
-    print("Type :", type(G))
-    print("Noeuds :", G.number_of_nodes())
-    print("Relations :", G.number_of_edges())
+        print("\n=== VERIFICATION NETWORKX ===")
+        print("Type :", type(G))
+        print("Noeuds :", G.number_of_nodes())
+        print("Relations :", G.number_of_edges())
+    finally:
+        extractor.close()
