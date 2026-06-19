@@ -3,7 +3,8 @@ neo4j
 faker
 pandas
 numpy
-networkx
+networkx>=2.8
+matplotlib
 plotly
 pytest
 scikit-learn
