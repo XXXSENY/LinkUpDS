@@ -9,6 +9,9 @@ import os
 import requests
 import pandas as pd
 import plotly.express as px
+import networkx as nx
+import plotly.graph_objects as go
+from neo4j import GraphDatabase
 
 from src.team2.dashboard_data import load_dashboard_snapshot
 
@@ -293,6 +296,38 @@ def load_network_dashboard_snapshot():
     """Instantané Neo4j mis en cache pendant une minute."""
     return load_dashboard_snapshot()
 
+def get_neo4j_driver():
+    """Crée le driver Neo4j à partir des variables d'environnement."""
+    uri = os.environ.get("NEO4J_URI", "bolt://localhost:7687")
+    user = os.environ.get("NEO4J_USER", "neo4j")
+    password = os.environ.get("NEO4J_PASSWORD", "password")
+    return GraphDatabase.driver(uri, auth=(user, password))
+
+def load_graph_from_neo4j():
+    """Récupère tous les utilisateurs et relations FOLLOWS depuis Neo4j et construit un DiGraph NetworkX."""
+    driver = get_neo4j_driver()
+    G = nx.DiGraph()
+    with driver.session() as session:
+        # Récupère tous les nœuds User (on suppose un label :User avec propriété userId)
+        result_users = session.run("MATCH (u:User) RETURN u.userId AS userId")
+        for record in result_users:
+            G.add_node(record["userId"])
+
+        # Récupère toutes les relations FOLLOWS
+        result_rels = session.run(
+            "MATCH (a:User)-[r:FOLLOWS]->(b:User) RETURN a.userId AS source, b.userId AS target"
+        )
+        for record in result_rels:
+            G.add_edge(record["source"], record["target"])
+    driver.close()
+    return G
+
+def compute_pagerank(G):
+    """Calcule le PageRank et retourne un DataFrame trié."""
+    pr = nx.pagerank(G, alpha=0.85)
+    df = pd.DataFrame(list(pr.items()), columns=["Utilisateur", "PageRank"])
+    df = df.sort_values(by="PageRank", ascending=False)
+    return df
 
 def _style_dashboard_figure(figure, height=410):
     figure.update_layout(
@@ -534,6 +569,149 @@ def network_dashboard_page():
           et devrait recevoir des recommandations d'abonnement spécifiques.
         """
     )
+
+def pagerank_page():
+    st.markdown("""
+    <div class="dashboard-hero">
+        <span class="dashboard-kicker">ÉQUIPE 2 · MEMBRE 3</span>
+        <h1>Influenceurs selon le PageRank</h1>
+        <p>Classement des utilisateurs les plus stratégiques du réseau.</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    if st.button("← Retour", key="pagerank_back"):
+        st.session_state.page = "home"
+        st.rerun()
+
+    with st.spinner("Chargement du graphe et calcul du PageRank…"):
+        try:
+            G = load_graph_from_neo4j()
+            if G.number_of_nodes() == 0:
+                st.warning("Le graphe est vide. Générez d'abord les données.")
+                return
+            df_pr = compute_pagerank(G)
+        except Exception as e:
+            st.error(f"Erreur lors du chargement ou du calcul : {e}")
+            st.stop()
+
+    top10 = df_pr.head(10)
+
+    # ---- Tableau Top 10 ----
+    st.subheader("🏆 Top 10 des influenceurs")
+    st.dataframe(
+        top10.style.format({"PageRank": "{:.6f}"}),
+        hide_index=True,
+        column_config={
+            "Utilisateur": "Utilisateur",
+            "PageRank": st.column_config.NumberColumn("Score PageRank", format="%.6f")
+        },
+        use_container_width=True
+    )
+
+    # ---- Diagramme en barres ----
+    st.subheader("📊 Scores des 10 premiers")
+    fig_bar = px.bar(
+        top10,
+        x="Utilisateur",
+        y="PageRank",
+        text_auto=".4f",
+        color="PageRank",
+        color_continuous_scale="Blues",
+        title="Top 10 PageRank"
+    )
+    fig_bar.update_traces(marker_line_color="#172033", marker_line_width=1)
+    fig_bar.update_layout(coloraxis_showscale=False, xaxis_tickangle=-45)
+    st.plotly_chart(fig_bar, use_container_width=True)
+
+    # ---- Visualisation du réseau (taille = PageRank) ----
+    st.subheader("🌐 Réseau global (taille des nœuds = PageRank)")
+
+    # Pour un graphe volumineux, on échantillonne les 200 plus gros degrés pour la lisibilité
+    if G.number_of_nodes() > 200:
+        top_degree_nodes = sorted(G.degree, key=lambda x: x[1], reverse=True)[:200]
+        sub_nodes = [n for n, _ in top_degree_nodes]
+        sub_G = G.subgraph(sub_nodes).copy()
+    else:
+        sub_G = G.copy()
+
+    # Calcul des positions avec spring_layout (peut être long sur >1000 nœuds)
+    with st.spinner("Calcul de la disposition du graphe…"):
+        pos = nx.spring_layout(sub_G, k=0.15, iterations=20, seed=42)
+
+    # Création des traces Plotly
+    edge_x = []
+    edge_y = []
+    for edge in sub_G.edges():
+        x0, y0 = pos[edge[0]]
+        x1, y1 = pos[edge[1]]
+        edge_x.extend([x0, x1, None])
+        edge_y.extend([y0, y1, None])
+
+    edge_trace = go.Scatter(
+        x=edge_x, y=edge_y,
+        line=dict(width=0.3, color="#888"),
+        hoverinfo='none',
+        mode='lines')
+
+    node_x = []
+    node_y = []
+    node_size = []
+    node_text = []
+    pr_dict = nx.pagerank(sub_G, alpha=0.85)  # recalcule uniquement pour le sous-graphe
+    max_pr = max(pr_dict.values()) if pr_dict else 1
+    for node in sub_G.nodes():
+        x, y = pos[node]
+        node_x.append(x)
+        node_y.append(y)
+        score = pr_dict.get(node, 0)
+        node_size.append(10 + 50 * (score / max_pr))  # taille proportionnelle
+        node_text.append(f"{node}<br>PageRank: {score:.6f}")
+
+    node_trace = go.Scatter(
+        x=node_x, y=node_y,
+        mode='markers',
+        hoverinfo='text',
+        text=node_text,
+        marker=dict(
+            showscale=False,
+            color='#356DF3',
+            size=node_size,
+            line_width=1,
+            line_color='#172033'
+        )
+    )
+
+    fig_network = go.Figure(data=[edge_trace, node_trace],
+                            layout=go.Layout(
+                                title='Réseau FOLLOWS (taille ∝ PageRank)',
+                                titlefont_size=16,
+                                showlegend=False,
+                                hovermode='closest',
+                                margin=dict(b=20, l=5, r=5, t=40),
+                                xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+                                yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+                                plot_bgcolor='white'
+                            ))
+    st.plotly_chart(fig_network, use_container_width=True)
+
+    # ---- Analyse écrite ----
+    st.subheader("📝 Interprétation")
+    st.markdown(f"""
+    - **{top10.iloc[0]['Utilisateur']}** est le nœud le plus influent avec un PageRank de **{top10.iloc[0]['PageRank']:.6f}**.  
+      Cela signifie qu'il est suivi par des utilisateurs eux‑mêmes très suivis.  
+    - La distribution des scores (voir l'histogramme ci‑dessus) est très asymétrique : quelques nœuds captent l'essentiel de l'autorité.  
+    - Les utilisateurs du Top 10 sont de véritables **têtes de pont** : ils occupent une position privilégiée pour diffuser rapidement de l'information.
+    """)
+
+    # Export CSV (optionnel)
+    csv = df_pr.to_csv(index=False).encode('utf-8')
+    st.download_button(
+        label="⬇️ Télécharger le classement complet (CSV)",
+        data=csv,
+        file_name="pagerank_scores.csv",
+        mime="text/csv"
+    )
+
 
 
 def render_post_card(post):
@@ -859,6 +1037,10 @@ if st.session_state.user_id:
         if st.button("Analyse réseau", use_container_width=True):
             st.session_state.page = "network_dashboard"
             st.rerun()
+        if st.button("Influenceurs", use_container_width=True):
+            st.session_state.page = "pagerank"
+            st.rerun()
+
 
         st.markdown('<div class="sidebar-divider"></div>', unsafe_allow_html=True)
         suggestions_section()
@@ -879,6 +1061,8 @@ if st.session_state.user_id:
 # =========================
 if st.session_state.page == "network_dashboard":
     network_dashboard_page()
+elif st.session_state.page == "pagerank":
+    pagerank_page()
 elif not st.session_state.user_id:
     login_page()
 else:
