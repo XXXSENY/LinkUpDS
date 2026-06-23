@@ -5,3 +5,4 @@ __pycache__/
 .env
 *.db
 neo4j_data/
+nltk_data/

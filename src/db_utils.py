@@ -307,6 +307,7 @@ class LinkUpDB:
         LIMIT $limit
         RETURN p {
             .postId,.content,.topic,.sentiment,.sentimentScore,
+            .detectedTopic,.topicWords,
             createdAt: toString(p.createdAt),
             updatedAt: toString(p.updatedAt),
             likeCount: likeCount,
@@ -326,6 +327,7 @@ class LinkUpDB:
         LIMIT $limit
         RETURN p {
             .postId,.content,.topic,.sentiment,.sentimentScore,
+            .detectedTopic,.topicWords,
             createdAt: toString(p.createdAt),
             updatedAt: toString(p.updatedAt),
             likeCount: likeCount,

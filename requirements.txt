@@ -17,3 +17,5 @@ bcrypt>=4.0.1
 python-dotenv
 pydantic[email]
 email-validator
+textblob
+matplotlib

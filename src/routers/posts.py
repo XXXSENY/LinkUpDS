@@ -20,7 +20,7 @@ def create_post(
     post: PostCreate,
     current_user: dict = Depends(get_current_user)
 ):
-    """Créer un nouveau post."""
+    """Créer un nouveau post avec analyse automatique de sentiment et de topic."""
     
     try:
         new_post = db.create_post(
@@ -28,7 +28,53 @@ def create_post(
             content=post.content,
             topic=post.topic,
         )
-        logger.info(f"Post créé par {current_user['userId']} : {new_post.get('postId')}")
+        
+        # Analyser automatiquement le sentiment du post
+        from src.nlp.sentiment_analysis import analyze_sentiment
+        sentiment_result = analyze_sentiment(post.content)
+        
+        # Analyser automatiquement le topic du post (approche directe sans reconstruction du modèle)
+        from src.nlp.topic_modeling import get_dominant_topic
+        try:
+            dominant_topic = get_dominant_topic(post.content)
+            topic_name = dominant_topic.get("topic_name") if dominant_topic else None
+            topic_words = dominant_topic.get("words", [])[:5] if dominant_topic else []
+            topic_confidence = dominant_topic.get("confidence", 0.0) if dominant_topic else 0.0
+        except Exception as e:
+            logger.warning(f"Topic modeling échoué: {e}")
+            topic_name = None
+            topic_words = []
+            topic_confidence = 0.0
+        
+        # Mettre à jour le post avec le sentiment et le topic
+        update_query = """
+        MATCH (p:Post {postId: $post_id})
+        SET p.sentiment = $label,
+            p.sentimentPolarity = $polarity,
+            p.sentimentSubjectivity = $subjectivity,
+            p.detectedTopic = $topic_name,
+            p.topicWords = $topic_words,
+            p.topicConfidence = $topic_confidence
+        RETURN p
+        """
+        db._execute_write(
+            update_query,
+            post_id=new_post.get("postId"),
+            label=sentiment_result["label"],
+            polarity=sentiment_result["polarity"],
+            subjectivity=sentiment_result["subjectivity"],
+            topic_name=topic_name,
+            topic_words=topic_words,
+            topic_confidence=topic_confidence,
+        )
+        
+        # Ajouter le sentiment et le topic à la réponse
+        new_post["sentiment"] = sentiment_result["label"]
+        new_post["sentimentPolarity"] = sentiment_result["polarity"]
+        new_post["detectedTopic"] = topic_name
+        new_post["topicWords"] = topic_words
+        
+        logger.info(f"Post créé par {current_user['userId']} : {new_post.get('postId')} (sentiment: {sentiment_result['label']}, topic: {topic_name})")
         return new_post
     except ValueError as e:
         logger.error(f"Erreur lors de la création du post : {e}")

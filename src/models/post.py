@@ -13,6 +13,8 @@ class PostResponse(BaseModel):
     topic: str
     sentiment: Optional[str] = "neutral"
     sentimentScore: Optional[float] = 0.0
+    detectedTopic: Optional[str] = None
+    topicWords: Optional[list] = None
     likeCount: Optional[int] = 0
     author: Optional[Dict[str, Any]] = None
     createdAt: Optional[str] = None

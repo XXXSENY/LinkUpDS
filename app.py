@@ -289,6 +289,32 @@ def render_post_card(post):
     name = author.get("name", "Membre")
     content = post.get("content", "")
     likes = post.get("likeCount", 0)
+    sentiment = post.get("sentiment", "").lower()
+    detected_topic = post.get("detectedTopic")
+    topic_words = post.get("topicWords", [])
+    
+    # Déterminer l'emoji et la couleur du sentiment
+    sentiment_emoji = "😐"
+    sentiment_color = "#9E9E9E"
+    if sentiment == "positif":
+        sentiment_emoji = "😊"
+        sentiment_color = "#4CAF50"
+    elif sentiment == "negatif":
+        sentiment_emoji = "😔"
+        sentiment_color = "#F44336"
+    
+    # Badge sentiment
+    sentiment_badge = f'<span class="sentiment-badge" style="background-color: {sentiment_color}; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px; margin-left: 8px;">{sentiment_emoji} {sentiment.capitalize()}</span>' if sentiment else ""
+    
+    # Badge topic
+    topic_badge = ""
+    if detected_topic:
+        topic_emoji = "🏷️"
+        topic_badge = f'<span class="topic-badge" style="background-color: #9C27B0; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px; margin-left: 8px;">{topic_emoji} {detected_topic}</span>'
+    
+    # Score de pertinence (Smart Feed)
+    relevance_score = post.get("relevanceScore")
+    relevance_badge = f'<span class="relevance-badge" style="background-color: #2196F3; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px; margin-left: 8px;">⭐ {relevance_score:.2f}</span>' if relevance_score else ""
 
     st.markdown(f"""
     <div class="post-card">
@@ -299,6 +325,9 @@ def render_post_card(post):
         <p class="post-content">{content}</p>
         <div class="post-stats">
             <span class="like-badge">❤️ {likes}</span>
+            {sentiment_badge}
+            {topic_badge}
+            {relevance_badge}
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -403,15 +432,15 @@ def home_page():
     c1, c2, c3 = st.columns(3)
 
     with c1:
-        if st.button("Feed", use_container_width=True):
+        if st.button("Feed", key="home_feed", use_container_width=True):
             st.session_state.page = "feed"
             st.rerun()
     with c2:
-        if st.button("Publier", use_container_width=True):
+        if st.button("Publier", key="home_create", use_container_width=True):
             st.session_state.page = "create"
             st.rerun()
     with c3:
-        if st.button("Profil", use_container_width=True):
+        if st.button("Profil", key="home_profile", use_container_width=True):
             st.session_state.page = "profile"
             st.rerun()
 
@@ -568,11 +597,55 @@ def profile_page():
 # =========================
 def suggestions_section():
     st.markdown("### 👥 Suggestions")
-    st.markdown("""
-    <div class="suggestion-box">
-        <p>Suggestions d'abonnements bientôt disponibles</p>
-    </div>
-    """, unsafe_allow_html=True)
+    
+    # Récupérer les recommandations depuis l'API
+    if st.session_state.user_id:
+        res = api_get(f"/recommendations/friends/{st.session_state.user_id}", params={"top_n": 5, "with_details": True})
+        
+        if res["ok"] and res["data"]:
+            recommendations = res["data"]
+            
+            for rec in recommendations:
+                user_id = rec.get("user_id")
+                score = rec.get("final_score", 0)
+                common_interests = rec.get("common_interests", [])
+                
+                # Récupérer les infos de l'utilisateur
+                user_res = api_get(f"/users/{user_id}")
+                if user_res["ok"] and user_res["data"]:
+                    user = user_res["data"]
+                    name = user.get("name", "Utilisateur")
+                    username = user.get("username", user_id[:12])
+                    
+                    with st.container():
+                        col1, col2 = st.columns([0.8, 0.2])
+                        with col1:
+                            st.markdown(f"**{name}** (@{username})")
+                            if common_interests:
+                                st.caption(f"Intérêts communs: {', '.join(common_interests[:3])}")
+                            st.caption(f"Score: {score:.2f}")
+                        with col2:
+                            if st.button("Suivre", key=f"follow_rec_{user_id}", use_container_width=True):
+                                follow_res = api_post(f"/follows/{user_id}")
+                                if follow_res["ok"]:
+                                    st.session_state.following_ids.add(user_id)
+                                    st.success("Abonné!")
+                                    st.rerun()
+                                else:
+                                    st.error("Erreur lors du suivi")
+                        st.markdown("---")
+        else:
+            st.markdown("""
+            <div class="suggestion-box">
+                <p>Aucune suggestion disponible pour le moment</p>
+            </div>
+            """, unsafe_allow_html=True)
+    else:
+        st.markdown("""
+        <div class="suggestion-box">
+            <p>Connecte-toi pour voir les suggestions</p>
+        </div>
+        """, unsafe_allow_html=True)
 
 
 # =========================
@@ -584,16 +657,16 @@ if st.session_state.user_id:
         st.markdown(f'<p class="sidebar-user">✨ {st.session_state.user_name}</p>', unsafe_allow_html=True)
         st.markdown('<div class="sidebar-divider"></div>', unsafe_allow_html=True)
 
-        if st.button("Accueil", use_container_width=True):
+        if st.button("Accueil", key="sidebar_home", use_container_width=True):
             st.session_state.page = "home"
             st.rerun()
-        if st.button("Feed", use_container_width=True):
+        if st.button("Feed", key="sidebar_feed", use_container_width=True):
             st.session_state.page = "feed"
             st.rerun()
-        if st.button("Publier", use_container_width=True):
+        if st.button("Publier", key="sidebar_create", use_container_width=True):
             st.session_state.page = "create"
             st.rerun()
-        if st.button("Profil", use_container_width=True):
+        if st.button("Profil", key="sidebar_profile", use_container_width=True):
             st.session_state.page = "profile"
             st.rerun()
 
