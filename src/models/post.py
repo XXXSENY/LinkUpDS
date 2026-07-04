@@ -16,6 +16,7 @@ class PostResponse(BaseModel):
     detectedTopic: Optional[str] = None
     topicWords: Optional[list] = None
     likeCount: Optional[int] = 0
+    relevanceScore: Optional[float] = None
     author: Optional[Dict[str, Any]] = None
     createdAt: Optional[str] = None
     updatedAt: Optional[str] = None

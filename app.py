@@ -269,10 +269,10 @@ def brand_logo_html():
     """
 
 
-def load_feed_posts(limit=100):
+def load_feed_posts(limit=100, smart=False):
     feed_res = api_get(
         f"/feed/{st.session_state.user_id}",
-        params={"limit": limit},
+        params={"limit": limit, "smart": smart},
     )
 
     if not feed_res["ok"]:
@@ -451,7 +451,9 @@ def home_page():
 def feed_page():
     st.markdown('<p class="page-title">Fil d\'actualité</p>', unsafe_allow_html=True)
 
-    all_posts, error = load_feed_posts()
+    smart_enabled = st.toggle("✨ Smart Feed (tri par pertinence)", value=True, key="smart_feed_toggle")
+
+    all_posts, error = load_feed_posts(smart=smart_enabled)
     if error:
         st.error(error)
         return
